@@ -17,6 +17,15 @@ pub struct GuessResult {
     pub letters: Vec<LetterResult>,
 }
 
+/// Whether the game was won or lost by the guesser.
+#[derive(Debug, Eq, PartialEq)]
+pub enum GameResult {
+    /// Indicates the guesser won the game, and how many guesses it took.
+    Success(u32),
+    /// Indicates that the guesser failed to guess the word.
+    Failure(),
+}
+
 /// Defines a Wordle game.
 pub struct Game<'a> {
     bank: &'a WordBank,
@@ -73,6 +82,29 @@ impl<'a> Game<'a> {
                 }
             }
         }
+    }
+
+    /// Plays this game out, returning whether or not the guesser suceeds.
+    ///
+    /// The game is dropped once this function returns.
+    pub fn play_game(mut self, word_to_guess: &str, max_num_guesses: u32) -> GameResult {
+        for round in 1..=max_num_guesses {
+            let maybe_guess = self.calculate_best_guess();
+            if maybe_guess.is_none() {
+                break;
+            }
+            let guess = maybe_guess.unwrap();
+            let result = get_result_for_guess(word_to_guess, guess);
+
+            if result.letters.iter().all(|lr| match lr {
+                LetterResult::Correct(_) => true,
+                _ => false,
+            }) {
+                return GameResult::Success(round);
+            }
+            self.update_guess_result(&result);
+        }
+        return GameResult::Failure();
     }
 }
 
