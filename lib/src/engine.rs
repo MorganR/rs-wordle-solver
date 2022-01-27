@@ -1,6 +1,6 @@
+use super::data::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use super::data::*;
 
 /// The result of a given letter at a specific location.
 #[derive(Debug)]
@@ -45,10 +45,15 @@ impl<'a> Game<'a> {
             });
         });
 
-        possible_words.iter().max_by_key(|word| {
-            let unique_chars: HashSet<char> = word.chars().collect();
-            unique_chars.iter().fold(0, |sum, letter| sum + count_per_letter.get(letter).unwrap())
-        }).map(|word| *word)
+        possible_words
+            .iter()
+            .max_by_key(|word| {
+                let unique_chars: HashSet<char> = word.chars().collect();
+                unique_chars
+                    .iter()
+                    .fold(0, |sum, letter| sum + count_per_letter.get(letter).unwrap())
+            })
+            .map(|word| *word)
     }
 
     /// Updates the game state based on the given information about a guess.

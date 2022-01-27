@@ -1,5 +1,5 @@
 mod data;
 mod engine;
 
-pub use data::*;
+pub use data::WordBank;
 pub use engine::*;

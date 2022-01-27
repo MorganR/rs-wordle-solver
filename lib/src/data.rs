@@ -36,7 +36,7 @@ impl WordRestrictions {
     }
 
     /// Returns `true` iff the given word satisfies these restrictions.
-    pub fn is_satisfied_by(&self, word: &str) -> bool {
+    fn is_satisfied_by(&self, word: &str) -> bool {
         self.must_contain_here
             .iter()
             .all(|ll| word.chars().nth(ll.location as usize) == Some(ll.letter))
@@ -70,11 +70,11 @@ impl WordBank {
     }
 
     /// Constructs a new `WordBank` struct using the words from the given vector.
-    /// 
+    ///
     /// Each word will be converted to lower case.
     pub fn from_vec(words: Vec<String>) -> Self {
         WordBank {
-            all_words: words.iter().map(|word| word.to_lowercase()).collect()
+            all_words: words.iter().map(|word| word.to_lowercase()).collect(),
         }
     }
 
@@ -95,4 +95,69 @@ impl WordBank {
             })
             .collect()
     }
+}
+
+#[test]
+fn word_bank_get_possible_words_must_contain_here() -> Result<()> {
+    let mut cursor = std::io::Cursor::new(String::from("worda\nwordb\nother\nsmore"));
+
+    let word_bank = WordBank::from_reader(&mut cursor)?;
+
+    let still_possible = word_bank.get_possible_words(&WordRestrictions {
+        must_contain_here: vec![LocatedLetter::new('o', 1), LocatedLetter::new('b', 4)],
+        must_contain_but_not_here: vec![],
+        must_not_contain: vec![],
+    });
+
+    assert_eq!(still_possible, vec!["wordb"]);
+    Ok(())
+}
+
+#[test]
+fn word_bank_get_possible_words_must_contain_not_here() -> Result<()> {
+    let mut cursor = std::io::Cursor::new(String::from("worda\nwordb\nother\nsmore"));
+
+    let word_bank = WordBank::from_reader(&mut cursor)?;
+
+    let still_possible = word_bank.get_possible_words(&WordRestrictions {
+        must_contain_here: vec![],
+        must_contain_but_not_here: vec![LocatedLetter::new('o', 0)],
+        must_not_contain: vec![],
+    });
+
+    assert_eq!(still_possible, vec!["worda", "wordb", "smore"]);
+    Ok(())
+}
+
+#[test]
+fn word_bank_get_possible_words_must_not_contain() -> Result<()> {
+    let mut cursor = std::io::Cursor::new(String::from("worda\nwordb\nother\nsmore"));
+
+    let word_bank = WordBank::from_reader(&mut cursor)?;
+
+    let still_possible = word_bank.get_possible_words(&WordRestrictions {
+        must_contain_here: vec![],
+        must_contain_but_not_here: vec![],
+        must_not_contain: vec!['w'],
+    });
+
+    assert_eq!(still_possible, vec!["other", "smore"]);
+    Ok(())
+}
+
+#[test]
+fn word_bank_get_possible_words_no_match() -> Result<()> {
+    let mut cursor = std::io::Cursor::new(String::from("worda\nwordb\nother\nsmore"));
+
+    let word_bank = WordBank::from_reader(&mut cursor)?;
+
+    let still_possible: Vec<&str> = word_bank.get_possible_words(&WordRestrictions {
+        must_contain_here: vec![LocatedLetter::new('o', 1)],
+        must_contain_but_not_here: vec![LocatedLetter::new('b', 4)],
+        must_not_contain: vec!['w'],
+    });
+
+    let empty: Vec<&str> = Vec::new();
+    assert_eq!(still_possible, empty);
+    Ok(())
 }
