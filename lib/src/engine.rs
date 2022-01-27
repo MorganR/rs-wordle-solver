@@ -87,6 +87,8 @@ impl<'a> Game<'a> {
     /// Plays this game out, returning whether or not the guesser suceeds.
     ///
     /// The game is dropped once this function returns.
+    /// TODO: Return a Result so it can fail (eg. if the given word is not in the word bank).
+    /// TODO: Return the list of guesses.
     pub fn play_game(mut self, word_to_guess: &str, max_num_guesses: u32) -> GameResult {
         for round in 1..=max_num_guesses {
             let maybe_guess = self.calculate_best_guess();
@@ -108,16 +110,16 @@ impl<'a> Game<'a> {
     }
 }
 
-/// Determines the result of the given `guess` when applied to the given answer `word`.
-pub fn get_result_for_guess(word: &str, guess: &str) -> GuessResult {
+/// Determines the result of the given `guess` when applied to the given `objective`.
+pub fn get_result_for_guess(objective: &str, guess: &str) -> GuessResult {
     GuessResult {
         letters: guess
             .char_indices()
             .map(|(index, letter)| {
-                if word.chars().nth(index).unwrap() == letter {
+                if objective.chars().nth(index).unwrap() == letter {
                     return LetterResult::Correct(letter);
                 }
-                if word.contains(letter) {
+                if objective.contains(letter) {
                     return LetterResult::PresentNotHere(letter);
                 }
                 LetterResult::NotPresent(letter)
