@@ -1,1 +1,3 @@
-pub mod data;
+mod data;
+
+pub use data::*;
