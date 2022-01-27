@@ -52,21 +52,30 @@ impl WordRestrictions {
 }
 
 /// Contains all the possible words for this Wordle game.
-pub struct PossibleWords {
+pub struct WordBank {
     all_words: Vec<String>,
 }
 
-impl PossibleWords {
-    /// Constructs a new `PossibleWords` struct by reading words from the given reader.
-    /// 
+impl WordBank {
+    /// Constructs a new `WordBank` struct by reading words from the given reader.
+    ///
     /// The reader should provide one word per line. Each word will be converted to lower case.
-    pub fn new<R: BufRead>(word_reader: &mut R) -> Result<Self> {
-        Ok(Self {
+    pub fn from_reader<R: BufRead>(word_reader: &mut R) -> Result<Self> {
+        Ok(WordBank {
             all_words: word_reader
                 .lines()
                 .map(|maybe_word| maybe_word.map(|word| word.to_lowercase()))
                 .collect::<Result<Vec<String>>>()?,
         })
+    }
+
+    /// Constructs a new `WordBank` struct using the words from the given vector.
+    /// 
+    /// Each word will be converted to lower case.
+    pub fn from_vec(words: Vec<String>) -> Self {
+        WordBank {
+            all_words: words.iter().map(|word| word.to_lowercase()).collect()
+        }
     }
 
     /// Returns the number of possible words.

@@ -18,8 +18,8 @@ fn main() -> Result<()> {
     println!("File: {}", args.words_file);
 
     let mut words_reader = BufReader::new(File::open(args.words_file)?);
-    let possible_words = PossibleWords::new(&mut words_reader)?;
+    let word_bank = WordBank::from_reader(&mut words_reader)?;
 
-    println!("Read {} words.", possible_words.len());
+    println!("Read {} words.", word_bank.len());
     Ok(())
 }
