@@ -1,12 +1,11 @@
-use std::collections::hash_set::HashSet;
-use std::collections::HashMap;
 use std::io::BufRead;
 use std::io::Result;
-use std::rc::Rc;
 
+/// A letter along with its location in the word.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LocatedLetter {
     pub letter: char,
+    /// The zero-based location (i.e. index) for this letter in a word.
     pub location: u8,
 }
 
@@ -16,13 +15,27 @@ impl LocatedLetter {
     }
 }
 
+/// Defines letter restrictions that a word must adhere to.
 pub struct WordRestrictions {
+    /// Letters that must occur in specific locations in the word.
     pub must_contain_here: Vec<LocatedLetter>,
+    /// Letters that must be present, but must be somewhere else in the word.
     pub must_contain_but_not_here: Vec<LocatedLetter>,
+    /// Letters that must not be in the word.
     pub must_not_contain: Vec<char>,
 }
 
 impl WordRestrictions {
+    /// Creates a new empty WordRestrictions struct.
+    pub fn new() -> WordRestrictions {
+        WordRestrictions {
+            must_contain_here: Vec::new(),
+            must_contain_but_not_here: Vec::new(),
+            must_not_contain: Vec::new(),
+        }
+    }
+
+    /// Returns `true` iff the given word satisfies these restrictions.
     pub fn is_satisfied_by(&self, word: &str) -> bool {
         self.must_contain_here
             .iter()
@@ -38,38 +51,30 @@ impl WordRestrictions {
     }
 }
 
+/// Contains all the possible words for this Wordle game.
 pub struct PossibleWords {
-    all_words: Vec<Rc<String>>,
-    words_per_located_letter: HashMap<LocatedLetter, HashSet<Rc<String>>>,
+    all_words: Vec<String>,
 }
 
 impl PossibleWords {
+    /// Constructs a new `PossibleWords` struct by reading words from the given reader.
+    /// 
+    /// The reader should provide one word per line. Each word will be converted to lower case.
     pub fn new<R: BufRead>(word_reader: &mut R) -> Result<Self> {
-        let mut located_letters_map = HashMap::new();
-        let all_words = word_reader
-            .lines()
-            .map(|maybe_word| {
-                maybe_word.map(|word| {
-                    let word_ref = Rc::new(word.to_lowercase());
-                    add_to_words_per_located_letter(&word_ref, &mut located_letters_map);
-                    word_ref
-                })
-            })
-            .collect::<Result<Vec<Rc<String>>>>()?;
         Ok(Self {
-            all_words: all_words,
-            words_per_located_letter: located_letters_map,
+            all_words: word_reader
+                .lines()
+                .map(|maybe_word| maybe_word.map(|word| word.to_lowercase()))
+                .collect::<Result<Vec<String>>>()?,
         })
     }
 
+    /// Returns the number of possible words.
     pub fn len(&self) -> usize {
         self.all_words.len()
     }
 
-    pub fn by_located_letter(&self, l: &LocatedLetter) -> Option<&HashSet<Rc<String>>> {
-        self.words_per_located_letter.get(l)
-    }
-
+    /// Gets the list of possible words that meet the given restrictions.
     pub fn get_possible_words(&self, restrictions: &WordRestrictions) -> Vec<&str> {
         self.all_words
             .iter()
@@ -80,18 +85,5 @@ impl PossibleWords {
                 None
             })
             .collect()
-    }
-}
-
-fn add_to_words_per_located_letter(
-    word: &Rc<String>,
-    words_per_located_letter: &mut HashMap<LocatedLetter, HashSet<Rc<String>>>,
-) {
-    for (index, letter) in word.char_indices() {
-        let located_letter = LocatedLetter::new(letter, index as u8);
-        let words = words_per_located_letter
-            .entry(located_letter)
-            .or_insert_with(HashSet::new);
-        words.insert(Rc::clone(word));
     }
 }
