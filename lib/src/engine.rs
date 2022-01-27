@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 /// The result of a given letter at a specific location.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum LetterResult {
     Correct(char),
     PresentNotHere(char),
@@ -73,5 +73,23 @@ impl<'a> Game<'a> {
                 }
             }
         }
+    }
+}
+
+/// Determines the result of the given `guess` when applied to the given answer `word`.
+pub fn get_result_for_guess(word: &str, guess: &str) -> GuessResult {
+    GuessResult {
+        letters: guess
+            .char_indices()
+            .map(|(index, letter)| {
+                if word.chars().nth(index).unwrap() == letter {
+                    return LetterResult::Correct(letter);
+                }
+                if word.contains(letter) {
+                    return LetterResult::PresentNotHere(letter);
+                }
+                LetterResult::NotPresent(letter)
+            })
+            .collect(),
     }
 }

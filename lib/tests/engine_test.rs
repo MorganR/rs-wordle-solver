@@ -33,6 +33,22 @@ fn update_guess_result_modifies_next_guess() {
     assert_eq!(game.calculate_best_guess(), Some("defy"));
 }
 
+#[test]
+fn get_result_for_guess_success() {
+    let result = get_result_for_guess("piano", "amino");
+
+    assert_eq!(
+        result.letters,
+        vec![
+            LetterResult::PresentNotHere('a'),
+            LetterResult::NotPresent('m'),
+            LetterResult::PresentNotHere('i'),
+            LetterResult::Correct('n'),
+            LetterResult::Correct('o'),
+        ]
+    )
+}
+
 fn create_word_bank(words: Vec<&str>) -> WordBank {
     WordBank::from_vec(words.iter().map(|word| word.to_string()).collect())
 }
