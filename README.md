@@ -12,7 +12,29 @@ This library has several word lists:
 
 *  A random set of 1000 words taken from each list.
 
-## Benchmark
+## Guesses Benchmark
+
+When benchmarked against the whole *improved* words list:
+
+### Choosing the word from the remaining possible words that maximizes the sum of letter occurrances, counting only unique letters.
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|137|
+|3|1264|
+|4|1828|
+|5|831|
+|6|322|
+|7|129|
+|8|57|
+|9|26|
+|10|6|
+|11|1|
+
+**Average number of guesses:** 4.16
+
+## Speed Benchmark
 
 Engine benchmark result:
 

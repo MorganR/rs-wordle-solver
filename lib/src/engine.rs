@@ -43,7 +43,7 @@ impl<'a> Game<'a> {
 
     /// Calculates the best guess based on all the guesses so far in this game.
     pub fn calculate_best_guess(&self) -> Option<&str> {
-        let possible_words = self.bank.get_possible_words(&self.restrictions);
+        let possible_words = get_possible_words(&self.restrictions, &self.bank);
 
         let mut count_per_letter: HashMap<char, u32> = HashMap::new();
         possible_words.iter().for_each(|word| {

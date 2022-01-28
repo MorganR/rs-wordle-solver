@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use wordle_solver::*;
@@ -10,6 +11,11 @@ struct Args {
     /// Path to a file that contains a list of possible words, with one word on each line.
     #[clap(short = 'f', long)]
     words_file: String,
+
+    /// If true, runs a benchmark to determine how many rounds are needed to guess every word in
+    /// the words file. Otherwise,  
+    #[clap(short = 'b', long)]
+    benchmark: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -20,9 +26,50 @@ fn main() -> io::Result<()> {
     let word_bank = WordBank::from_reader(&mut words_reader)?;
     println!("There are {} possible words.", word_bank.len());
 
-    play_game(&word_bank)?;
+    if args.benchmark {
+        run_benchmark(&word_bank);
+    } else {
+        play_game(&word_bank)?;
+    }
 
     Ok(())
+}
+
+fn run_benchmark(word_bank: &WordBank) {
+    let mut num_games_per_round: HashMap<u32, u32> = HashMap::new();
+
+    for word in word_bank.all_words().iter() {
+        let game = Game::new(&word_bank);
+
+        if let GameResult::Success(rounds) = game.play_game(word, 128) {
+            *(num_games_per_round.entry(rounds).or_insert(0)) += 1;
+        } else {
+            assert!(false);
+        }
+    }
+
+    println!("Solved {} words. Results:", word_bank.len());
+    println!("|Num guesses|Num games|");
+    println!("|-----------|---------|");
+    let mut num_rounds = num_games_per_round
+        .keys()
+        .map(|key| *key)
+        .collect::<Vec<u32>>();
+    num_rounds.sort_unstable();
+    for num_round in num_rounds.iter() {
+        println!(
+            "|{}|{}|",
+            num_round,
+            num_games_per_round.get(num_round).unwrap()
+        );
+    }
+    println!(
+        "\n**Average number of guesses:** {:.2}",
+        num_games_per_round
+            .iter()
+            .fold(0, |acc, (key, value)| acc + (key * value)) as f64
+            / word_bank.len() as f64
+    );
 }
 
 fn play_game(word_bank: &WordBank) -> io::Result<()> {

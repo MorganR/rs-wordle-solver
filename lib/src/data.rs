@@ -78,23 +78,31 @@ impl WordBank {
         }
     }
 
+    /// Retrieves the full list of available words.
+    pub fn all_words(&self) -> Vec<&str> {
+        self.all_words.iter().map(AsRef::as_ref).collect()
+    }
+
     /// Returns the number of possible words.
     pub fn len(&self) -> usize {
         self.all_words.len()
     }
+}
 
-    /// Gets the list of possible words that meet the given restrictions.
-    pub fn get_possible_words(&self, restrictions: &WordRestrictions) -> Vec<&str> {
-        self.all_words
-            .iter()
-            .filter_map(|word| {
-                if restrictions.is_satisfied_by(word) {
-                    return Some(word.as_str());
-                }
-                None
-            })
-            .collect()
-    }
+/// Gets the list of possible words in the word bank that meet the given restrictions.
+pub fn get_possible_words<'a, 'b>(
+    restrictions: &'a WordRestrictions,
+    bank: &'b WordBank,
+) -> Vec<&'b str> {
+    bank.all_words
+        .iter()
+        .filter_map(|word| {
+            if restrictions.is_satisfied_by(word) {
+                return Some(word.as_str());
+            }
+            None
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -109,11 +117,14 @@ mod tests {
 
         let word_bank = WordBank::from_reader(&mut cursor)?;
 
-        let still_possible = word_bank.get_possible_words(&WordRestrictions {
-            must_contain_here: vec![LocatedLetter::new('o', 1), LocatedLetter::new('b', 4)],
-            must_contain_but_not_here: vec![],
-            must_not_contain: vec![],
-        });
+        let still_possible = get_possible_words(
+            &WordRestrictions {
+                must_contain_here: vec![LocatedLetter::new('o', 1), LocatedLetter::new('b', 4)],
+                must_contain_but_not_here: vec![],
+                must_not_contain: vec![],
+            },
+            &word_bank,
+        );
 
         assert_eq!(still_possible, vec!["wordb"]);
         Ok(())
@@ -125,11 +136,14 @@ mod tests {
 
         let word_bank = WordBank::from_reader(&mut cursor)?;
 
-        let still_possible = word_bank.get_possible_words(&WordRestrictions {
-            must_contain_here: vec![],
-            must_contain_but_not_here: vec![LocatedLetter::new('o', 0)],
-            must_not_contain: vec![],
-        });
+        let still_possible = get_possible_words(
+            &WordRestrictions {
+                must_contain_here: vec![],
+                must_contain_but_not_here: vec![LocatedLetter::new('o', 0)],
+                must_not_contain: vec![],
+            },
+            &word_bank,
+        );
 
         assert_eq!(still_possible, vec!["worda", "wordb", "smore"]);
         Ok(())
@@ -141,11 +155,14 @@ mod tests {
 
         let word_bank = WordBank::from_reader(&mut cursor)?;
 
-        let still_possible = word_bank.get_possible_words(&WordRestrictions {
-            must_contain_here: vec![],
-            must_contain_but_not_here: vec![],
-            must_not_contain: vec!['w'],
-        });
+        let still_possible = get_possible_words(
+            &WordRestrictions {
+                must_contain_here: vec![],
+                must_contain_but_not_here: vec![],
+                must_not_contain: vec!['w'],
+            },
+            &word_bank,
+        );
 
         assert_eq!(still_possible, vec!["other", "smore"]);
         Ok(())
@@ -157,11 +174,14 @@ mod tests {
 
         let word_bank = WordBank::from_reader(&mut cursor)?;
 
-        let still_possible: Vec<&str> = word_bank.get_possible_words(&WordRestrictions {
-            must_contain_here: vec![LocatedLetter::new('o', 1)],
-            must_contain_but_not_here: vec![LocatedLetter::new('b', 4)],
-            must_not_contain: vec!['w'],
-        });
+        let still_possible: Vec<&str> = get_possible_words(
+            &WordRestrictions {
+                must_contain_here: vec![LocatedLetter::new('o', 1)],
+                must_contain_but_not_here: vec![LocatedLetter::new('b', 4)],
+                must_not_contain: vec!['w'],
+            },
+            &word_bank,
+        );
 
         let empty: Vec<&str> = Vec::new();
         assert_eq!(still_possible, empty);
