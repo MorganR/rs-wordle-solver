@@ -13,7 +13,7 @@ struct Args {
     words_file: String,
 
     /// If true, runs a benchmark to determine how many rounds are needed to guess every word in
-    /// the words file. Otherwise,  
+    /// the words file. The benchmark is run instead of playing an interactive game.
     #[clap(short = 'b', long)]
     benchmark: bool,
 }
@@ -36,17 +36,21 @@ fn main() -> io::Result<()> {
 }
 
 fn run_benchmark(word_bank: &WordBank) {
-    let mut num_games_per_round: HashMap<u32, u32> = HashMap::new();
-
+    let mut num_guesses_per_game: Vec<u32> = Vec::new();
     for word in word_bank.all_words().iter() {
         if let GameResult::Success(guesses) = play_game(word, 128, word_bank) {
-            *(num_games_per_round.entry(guesses.len() as u32).or_insert(0)) += 1;
+            num_guesses_per_game.push(guesses.len() as u32);
         } else {
             assert!(false);
         }
     }
-
     println!("Solved {} words. Results:", word_bank.len());
+
+    let mut num_games_per_round: HashMap<u32, u32> = HashMap::new();
+    for num_guesses in num_guesses_per_game.iter() {
+        *(num_games_per_round.entry(*num_guesses).or_insert(0)) += 1;
+    }
+
     println!("|Num guesses|Num games|");
     println!("|-----------|---------|");
     let mut num_rounds = num_games_per_round
@@ -61,12 +65,23 @@ fn run_benchmark(word_bank: &WordBank) {
             num_games_per_round.get(num_round).unwrap()
         );
     }
+
+    let average: f64 = num_games_per_round
+        .iter()
+        .fold(0, |acc, (num_guesses, num_games)| {
+            acc + (num_guesses * num_games)
+        }) as f64
+        / num_guesses_per_game.len() as f64;
+    let std_dev: f64 = (num_guesses_per_game
+        .iter()
+        .map(|num_guesses| (*num_guesses as f64 - average).powi(2))
+        .sum::<f64>()
+        / num_guesses_per_game.len() as f64)
+        .sqrt();
+
     println!(
-        "\n**Average number of guesses:** {:.2}",
-        num_games_per_round
-            .iter()
-            .fold(0, |acc, (key, value)| acc + (key * value)) as f64
-            / word_bank.len() as f64
+        "\n**Average number of guesses:** {:.2} +/- {:.2}",
+        average, std_dev
     );
 }
 

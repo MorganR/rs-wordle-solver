@@ -16,7 +16,10 @@ This library has several word lists:
 
 When benchmarked against the whole *improved* words list:
 
-### Choosing the word from the remaining possible words that maximizes the sum of letter occurrances, counting only unique letters.
+### MaxUniqueLetterFrequencySelector
+
+This is a fairly naive selector. It selects the word that maximizes the sum of the frequency of
+unique letters in the remaining possible words.
 
 |Num guesses|Num games|
 |-----------|---------|
@@ -32,11 +35,31 @@ When benchmarked against the whole *improved* words list:
 |10|6|
 |11|1|
 
-**Average number of guesses:** 4.16
+**Average number of guesses:** 4.16 +/- 1.22
+
+### MaxUnguessedUniqueLetterFrequencySelector
+
+This selects the word that maximizes the sum of the frequency of unique letters that have not yet
+been guessed in the remaining possible words. It can select a guess from words that could not
+possibly be the answer in order to maximize the information gained per guess. This results in fewer
+lucky guesses early on, but with a dramatically improved long tail. 
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|32|
+|3|1030|
+|4|2183|
+|5|1078|
+|6|233|
+|7|42|
+|8|3|
+
+**Average number of guesses:** 4.13 +/- 0.88
 
 ## Speed Benchmark
 
-Engine benchmark result:
+### MaxUniqueLetterFrequencySelector
 
 ```
 running 2 tests
@@ -44,4 +67,16 @@ test bench_guess_random_improved_words ... bench:   1,839,250 ns/iter (+/- 93,80
 test bench_guess_random_wordle_words   ... bench:   5,134,434 ns/iter (+/- 278,388)
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 8.49s
+```
+
+### MaxUnguessedUniqueLetterFrequencySelector
+
+Engine benchmark result:
+
+```
+running 2 tests
+test bench_guess_random_improved_words ... bench:   3,944,031 ns/iter (+/- 863,425)
+test bench_guess_random_wordle_words   ... bench:  11,516,727 ns/iter (+/- 3,847,099)
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 7.09s
 ```

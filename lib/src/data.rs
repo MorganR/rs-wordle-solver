@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::BufRead;
 use std::io::Result;
 
@@ -18,20 +19,20 @@ impl LocatedLetter {
 /// Defines letter restrictions that a word must adhere to.
 pub struct WordRestrictions {
     /// Letters that must occur in specific locations in the word.
-    pub must_contain_here: Vec<LocatedLetter>,
+    pub must_contain_here: HashSet<LocatedLetter>,
     /// Letters that must be present, but must be somewhere else in the word.
-    pub must_contain_but_not_here: Vec<LocatedLetter>,
+    pub must_contain_but_not_here: HashSet<LocatedLetter>,
     /// Letters that must not be in the word.
-    pub must_not_contain: Vec<char>,
+    pub must_not_contain: HashSet<char>,
 }
 
 impl WordRestrictions {
     /// Creates a new empty WordRestrictions struct.
     pub fn new() -> WordRestrictions {
         WordRestrictions {
-            must_contain_here: Vec::new(),
-            must_contain_but_not_here: Vec::new(),
-            must_not_contain: Vec::new(),
+            must_contain_here: HashSet::new(),
+            must_contain_but_not_here: HashSet::new(),
+            must_not_contain: HashSet::new(),
         }
     }
 
@@ -54,6 +55,7 @@ impl WordRestrictions {
 /// Contains all the possible words for this Wordle game.
 pub struct WordBank {
     all_words: Vec<String>,
+    max_word_length: usize,
 }
 
 impl WordBank {
@@ -61,11 +63,21 @@ impl WordBank {
     ///
     /// The reader should provide one word per line. Each word will be converted to lower case.
     pub fn from_reader<R: BufRead>(word_reader: &mut R) -> Result<Self> {
+        let mut max_word_length = 0;
         Ok(WordBank {
             all_words: word_reader
                 .lines()
-                .map(|maybe_word| maybe_word.map(|word| word.to_lowercase()))
+                .map(|maybe_word| {
+                    maybe_word.map(|word| {
+                        let word_length = word.len();
+                        if max_word_length < word_length {
+                            max_word_length = word_length;
+                        }
+                        word.to_lowercase()
+                    })
+                })
                 .collect::<Result<Vec<String>>>()?,
+            max_word_length: max_word_length,
         })
     }
 
@@ -73,8 +85,19 @@ impl WordBank {
     ///
     /// Each word will be converted to lower case.
     pub fn from_vec(words: Vec<String>) -> Self {
+        let mut max_word_length = 0;
         WordBank {
-            all_words: words.iter().map(|word| word.to_lowercase()).collect(),
+            all_words: words
+                .iter()
+                .map(|word| {
+                    let word_length = word.len();
+                    if max_word_length < word_length {
+                        max_word_length = word_length;
+                    }
+                    word.to_lowercase()
+                })
+                .collect(),
+            max_word_length: max_word_length,
         }
     }
 
@@ -86,6 +109,11 @@ impl WordBank {
     /// Returns the number of possible words.
     pub fn len(&self) -> usize {
         self.all_words.len()
+    }
+
+    /// Returns the length of the longest word in the bank.
+    pub fn max_word_len(&self) -> usize {
+        self.max_word_length
     }
 }
 
@@ -119,9 +147,12 @@ mod tests {
 
         let still_possible = get_possible_words(
             &WordRestrictions {
-                must_contain_here: vec![LocatedLetter::new('o', 1), LocatedLetter::new('b', 4)],
-                must_contain_but_not_here: vec![],
-                must_not_contain: vec![],
+                must_contain_here: HashSet::from([
+                    LocatedLetter::new('o', 1),
+                    LocatedLetter::new('b', 4),
+                ]),
+                must_contain_but_not_here: HashSet::new(),
+                must_not_contain: HashSet::new(),
             },
             &word_bank,
         );
@@ -138,9 +169,9 @@ mod tests {
 
         let still_possible = get_possible_words(
             &WordRestrictions {
-                must_contain_here: vec![],
-                must_contain_but_not_here: vec![LocatedLetter::new('o', 0)],
-                must_not_contain: vec![],
+                must_contain_here: HashSet::new(),
+                must_contain_but_not_here: HashSet::from([LocatedLetter::new('o', 0)]),
+                must_not_contain: HashSet::new(),
             },
             &word_bank,
         );
@@ -157,9 +188,9 @@ mod tests {
 
         let still_possible = get_possible_words(
             &WordRestrictions {
-                must_contain_here: vec![],
-                must_contain_but_not_here: vec![],
-                must_not_contain: vec!['w'],
+                must_contain_here: HashSet::new(),
+                must_contain_but_not_here: HashSet::new(),
+                must_not_contain: HashSet::from(['w']),
             },
             &word_bank,
         );
@@ -176,9 +207,9 @@ mod tests {
 
         let still_possible: Vec<&str> = get_possible_words(
             &WordRestrictions {
-                must_contain_here: vec![LocatedLetter::new('o', 1)],
-                must_contain_but_not_here: vec![LocatedLetter::new('b', 4)],
-                must_not_contain: vec!['w'],
+                must_contain_here: HashSet::from([LocatedLetter::new('o', 1)]),
+                must_contain_but_not_here: HashSet::from([LocatedLetter::new('b', 4)]),
+                must_not_contain: HashSet::from(['w']),
             },
             &word_bank,
         );
