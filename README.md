@@ -40,8 +40,8 @@ Engine benchmark result:
 
 ```
 running 2 tests
-test bench_guess_random_improved_words ... bench:   1,785,671 ns/iter (+/- 85,368)
-test bench_guess_random_wordle_words   ... bench:   4,963,037 ns/iter (+/- 306,767)
+test bench_guess_random_improved_words ... bench:   1,839,250 ns/iter (+/- 93,806)
+test bench_guess_random_wordle_words   ... bench:   5,134,434 ns/iter (+/- 278,388)
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 8.24s
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 8.49s
 ```

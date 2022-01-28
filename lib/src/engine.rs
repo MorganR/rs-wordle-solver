@@ -28,10 +28,72 @@ pub enum GameResult {
     UnknownWord(),
 }
 
+trait GuessSelector {
+    fn select_guess<'a, 'b, 'c>(
+        &self,
+        restrictions: &'a WordRestrictions,
+        words_to_avoid: &'b Vec<String>,
+        bank: &'c WordBank,
+    ) -> Option<&'c str>;
+}
+
+/// Selects the word that maximizes the sum of the frequency of unique letters.
+#[derive(Clone, Copy)]
+struct MaxUniqueLetterFrequencySelector();
+
+impl GuessSelector for MaxUniqueLetterFrequencySelector {
+    fn select_guess<'a, 'b, 'c>(
+        &self,
+        restrictions: &'a WordRestrictions,
+        words_to_avoid: &'b Vec<String>,
+        bank: &'c WordBank,
+    ) -> Option<&'c str> {
+        let possible_words = get_possible_words(restrictions, bank);
+
+        let count_per_letter = compute_count_per_unique_letter(&possible_words);
+
+        return retrieve_word_with_max_letter_frequency(
+            &count_per_letter,
+            words_to_avoid,
+            &possible_words,
+        );
+    }
+}
+
+fn compute_count_per_unique_letter(words: &Vec<&str>) -> HashMap<char, u32> {
+    let mut count_per_letter: HashMap<char, u32> = HashMap::new();
+    words.iter().for_each(|word| {
+        let unique_chars: HashSet<char> = word.chars().collect();
+        unique_chars.iter().for_each(|letter| {
+            let count = count_per_letter.entry(*letter).or_insert(0);
+            *count += 1;
+        });
+    });
+    count_per_letter
+}
+
+fn retrieve_word_with_max_letter_frequency<'a, 'b, 'c, 'd>(
+    count_per_letter: &'a HashMap<char, u32>,
+    words_to_avoid: &'b Vec<String>,
+    words: &'c Vec<&'d str>,
+) -> Option<&'d str> {
+    words
+        .iter()
+        .filter(|word| !words_to_avoid.iter().any(|other_word| *word == other_word))
+        .max_by_key(|word| {
+            let unique_chars: HashSet<char> = word.chars().collect();
+            unique_chars.iter().fold(0, |sum, letter| {
+                sum + count_per_letter.get(letter).unwrap_or(&0)
+            })
+        })
+        .map(|word| *word)
+}
+
 /// Defines a Wordle game.
 pub struct Game<'a> {
     bank: &'a WordBank,
     restrictions: WordRestrictions,
+    guesses: Vec<String>,
 }
 
 impl<'a> Game<'a> {
@@ -40,50 +102,43 @@ impl<'a> Game<'a> {
         Self {
             bank: bank,
             restrictions: WordRestrictions::new(),
+            guesses: Vec::new(),
         }
     }
 
     /// Calculates the best guess based on all the guesses so far in this game.
     pub fn calculate_best_guess(&self) -> Option<&str> {
-        let possible_words = get_possible_words(&self.restrictions, &self.bank);
-
-        let mut count_per_letter: HashMap<char, u32> = HashMap::new();
-        possible_words.iter().for_each(|word| {
-            let unique_chars: HashSet<char> = word.chars().collect();
-            unique_chars.iter().for_each(|letter| {
-                let count = count_per_letter.entry(*letter).or_insert(0);
-                *count += 1;
-            });
-        });
-
-        possible_words
-            .iter()
-            .max_by_key(|word| {
-                let unique_chars: HashSet<char> = word.chars().collect();
-                unique_chars
-                    .iter()
-                    .fold(0, |sum, letter| sum + count_per_letter.get(letter).unwrap())
-            })
-            .map(|word| *word)
+        MaxUniqueLetterFrequencySelector().select_guess(
+            &self.restrictions,
+            &self.guesses,
+            &self.bank,
+        )
     }
 
     /// Updates the game state based on the given information about a guess.
     pub fn update_guess_result(&mut self, result: &GuessResult) {
+        let mut guess = String::with_capacity(result.letters.len());
         for (index, lr) in result.letters.iter().enumerate() {
             match lr {
-                LetterResult::Correct(letter) => self
-                    .restrictions
-                    .must_contain_here
-                    .push(LocatedLetter::new(*letter, index as u8)),
-                LetterResult::PresentNotHere(letter) => self
-                    .restrictions
-                    .must_contain_but_not_here
-                    .push(LocatedLetter::new(*letter, index as u8)),
+                LetterResult::Correct(letter) => {
+                    self.restrictions
+                        .must_contain_here
+                        .push(LocatedLetter::new(*letter, index as u8));
+                    guess.push(*letter);
+                }
+                LetterResult::PresentNotHere(letter) => {
+                    self.restrictions
+                        .must_contain_but_not_here
+                        .push(LocatedLetter::new(*letter, index as u8));
+                    guess.push(*letter);
+                }
                 LetterResult::NotPresent(letter) => {
-                    self.restrictions.must_not_contain.push(*letter)
+                    self.restrictions.must_not_contain.push(*letter);
+                    guess.push(*letter);
                 }
             }
         }
+        self.guesses.push(guess);
     }
 }
 
