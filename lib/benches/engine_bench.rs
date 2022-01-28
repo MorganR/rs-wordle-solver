@@ -25,8 +25,7 @@ fn bench_guess_random_wordle_words(b: &mut Bencher) -> Result<()> {
             test_word_iter = test_words.iter();
             test_word_iter.next().unwrap()
         });
-        let game = Game::new(&bank);
-        return game.play_game(test_word, u32::MAX);
+        return play_game(test_word, u32::MAX, &bank);
     });
 
     Ok(())
@@ -48,8 +47,7 @@ fn bench_guess_random_improved_words(b: &mut Bencher) -> Result<()> {
             test_word_iter = test_words.iter();
             test_word_iter.next().unwrap()
         });
-        let game = Game::new(&bank);
-        return game.play_game(test_word, u32::MAX);
+        return play_game(test_word, u32::MAX, &bank);
     });
 
     Ok(())

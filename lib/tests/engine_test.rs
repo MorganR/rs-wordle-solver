@@ -33,32 +33,35 @@ fn update_guess_result_modifies_next_guess() {
     assert_eq!(game.calculate_best_guess(), Some("defy"));
 }
 
-// TODO: Return an error in this case.
 #[test]
 fn play_game_with_unknown_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let game = Game::new(&bank);
 
-    assert_eq!(game.play_game("nope", 10), GameResult::Failure());
+    assert_eq!(play_game("nope", 10, &bank), GameResult::UnknownWord());
 }
 
 #[test]
 fn play_game_with_known_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let game = Game::new(&bank);
 
-    assert!(match game.play_game("abcz", 10) {
-        GameResult::Success(_) => true,
-        _ => false,
-    });
+    if let GameResult::Success(guesses) = play_game("abcz", 10, &bank) {
+        assert!(guesses.len() < 10);
+        assert_eq!(guesses.iter().last(), Some(&String::from("abcz")));
+    } else {
+        assert!(false);
+    }
 }
 
 #[test]
 fn play_game_takes_too_many_guesses() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let game = Game::new(&bank);
 
-    assert_eq!(game.play_game("abcz", 1), GameResult::Failure());
+    if let GameResult::Failure(guesses) = play_game("abcz", 1, &bank) {
+        assert_eq!(guesses.len(), 1);
+        assert!(!guesses.contains(&String::from("abcz")));
+    } else {
+        assert!(false);
+    }
 }
 
 #[test]

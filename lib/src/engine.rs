@@ -20,10 +20,12 @@ pub struct GuessResult {
 /// Whether the game was won or lost by the guesser.
 #[derive(Debug, Eq, PartialEq)]
 pub enum GameResult {
-    /// Indicates the guesser won the game, and how many guesses it took.
-    Success(u32),
-    /// Indicates that the guesser failed to guess the word.
-    Failure(),
+    /// Indicates that the guesser won the game, and provides the guesses that were given.
+    Success(Vec<String>),
+    /// Indicates that the guesser failed to guess the word, and provides the guesses that were given.
+    Failure(Vec<String>),
+    /// Indicates that the given word was not in the word bank.
+    UnknownWord(),
 }
 
 /// Defines a Wordle game.
@@ -83,31 +85,6 @@ impl<'a> Game<'a> {
             }
         }
     }
-
-    /// Plays this game out, returning whether or not the guesser suceeds.
-    ///
-    /// The game is dropped once this function returns.
-    /// TODO: Return a Result so it can fail (eg. if the given word is not in the word bank).
-    /// TODO: Return the list of guesses.
-    pub fn play_game(mut self, word_to_guess: &str, max_num_guesses: u32) -> GameResult {
-        for round in 1..=max_num_guesses {
-            let maybe_guess = self.calculate_best_guess();
-            if maybe_guess.is_none() {
-                break;
-            }
-            let guess = maybe_guess.unwrap();
-            let result = get_result_for_guess(word_to_guess, guess);
-
-            if result.letters.iter().all(|lr| match lr {
-                LetterResult::Correct(_) => true,
-                _ => false,
-            }) {
-                return GameResult::Success(round);
-            }
-            self.update_guess_result(&result);
-        }
-        return GameResult::Failure();
-    }
 }
 
 /// Determines the result of the given `guess` when applied to the given `objective`.
@@ -126,4 +103,29 @@ pub fn get_result_for_guess(objective: &str, guess: &str) -> GuessResult {
             })
             .collect(),
     }
+}
+
+/// Attempts to guess the given word within the maximum number of guesses, using words from the
+/// word bank.
+pub fn play_game(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank) -> GameResult {
+    let mut game = Game::new(word_bank);
+    let mut guesses: Vec<String> = Vec::new();
+    for _ in 1..=max_num_guesses {
+        let maybe_guess = game.calculate_best_guess();
+        if maybe_guess.is_none() {
+            return GameResult::UnknownWord();
+        }
+        let guess = maybe_guess.unwrap();
+        guesses.push(String::from(guess));
+        let result = get_result_for_guess(word_to_guess, guess);
+
+        if result.letters.iter().all(|lr| match lr {
+            LetterResult::Correct(_) => true,
+            _ => false,
+        }) {
+            return GameResult::Success(guesses);
+        }
+        game.update_guess_result(&result);
+    }
+    return GameResult::Failure(guesses);
 }

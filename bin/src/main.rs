@@ -29,7 +29,7 @@ fn main() -> io::Result<()> {
     if args.benchmark {
         run_benchmark(&word_bank);
     } else {
-        play_game(&word_bank)?;
+        play_interactive_game(&word_bank)?;
     }
 
     Ok(())
@@ -39,10 +39,8 @@ fn run_benchmark(word_bank: &WordBank) {
     let mut num_games_per_round: HashMap<u32, u32> = HashMap::new();
 
     for word in word_bank.all_words().iter() {
-        let game = Game::new(&word_bank);
-
-        if let GameResult::Success(rounds) = game.play_game(word, 128) {
-            *(num_games_per_round.entry(rounds).or_insert(0)) += 1;
+        if let GameResult::Success(guesses) = play_game(word, 128, word_bank) {
+            *(num_games_per_round.entry(guesses.len() as u32).or_insert(0)) += 1;
         } else {
             assert!(false);
         }
@@ -72,7 +70,7 @@ fn run_benchmark(word_bank: &WordBank) {
     );
 }
 
-fn play_game(word_bank: &WordBank) -> io::Result<()> {
+fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
     let mut game = Game::new(&word_bank);
     println!("Choose a word from the word-list. Press enter once you've chosen.");
 
