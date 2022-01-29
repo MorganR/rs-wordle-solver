@@ -121,7 +121,7 @@ fn play_single_game(word: &str, word_bank: &WordBank) {
 }
 
 fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
-    let mut game = Game::new(&word_bank);
+    let mut guesser = MaxUnguessedUniqueLetterFrequencyGuesser::new(&word_bank);
     println!("Choose a word from the word-list. Press enter once you've chosen.");
 
     {
@@ -138,13 +138,13 @@ fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
          For example, if your word was \"spade\" and the guess was \"soapy\", you would enter \"g.gy.\"");
 
     for round in 1..7 {
-        let guess = game.calculate_best_guess().unwrap();
+        let guess = guesser.select_next_guess().unwrap();
         println!("I'm guessing: {}. How did I do?", guess);
 
-        let mut result = get_result_for_guess(guess);
+        let mut result = get_result_for_guess(guess.as_str());
         while result.is_err() {
             println!("{}", result.unwrap_err());
-            result = get_result_for_guess(guess);
+            result = get_result_for_guess(guess.as_str());
         }
 
         let result = result.unwrap();
@@ -161,7 +161,7 @@ fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
             return Ok(());
         }
 
-        game.update_guess_result(&result);
+        guesser.update(guess.as_str(), &result);
     }
 
     println!("I couldn't guess it :(");

@@ -1,36 +1,46 @@
+use std::rc::Rc;
 use wordle_solver::*;
 
 #[test]
 fn calculate_best_guess_no_words() {
     let bank = create_word_bank(vec![]);
-    let game = Game::new(&bank);
+    let guesser = MaxUniqueLetterFrequencyGuesser::new(&bank);
 
-    assert_eq!(game.calculate_best_guess(), None);
+    assert_eq!(guesser.select_next_guess(), None);
 }
 
 #[test]
 fn calculate_best_guess_chooses_best_word() {
     let bank = create_word_bank(vec!["abcz", "wxyz", "defy", "ghix"]);
-    let game = Game::new(&bank);
+    let guesser = MaxUniqueLetterFrequencyGuesser::new(&bank);
 
-    assert_eq!(game.calculate_best_guess(), Some("wxyz"));
+    assert_eq!(
+        guesser.select_next_guess(),
+        Some(Rc::new("wxyz".to_string()))
+    );
 }
 
 #[test]
 fn update_guess_result_modifies_next_guess() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let mut game = Game::new(&bank);
+    let mut guesser = MaxUniqueLetterFrequencyGuesser::new(&bank);
 
-    game.update_guess_result(&GuessResult {
-        letters: vec![
-            LetterResult::NotPresent('w'),
-            LetterResult::Correct('e'),
-            LetterResult::PresentNotHere('y'),
-            LetterResult::NotPresent('z'),
-        ],
-    });
+    guesser.update(
+        "weyz",
+        &GuessResult {
+            letters: vec![
+                LetterResult::NotPresent('w'),
+                LetterResult::Correct('e'),
+                LetterResult::PresentNotHere('y'),
+                LetterResult::NotPresent('z'),
+            ],
+        },
+    );
 
-    assert_eq!(game.calculate_best_guess(), Some("defy"));
+    assert_eq!(
+        guesser.select_next_guess(),
+        Some(Rc::new("defy".to_string()))
+    );
 }
 
 #[test]

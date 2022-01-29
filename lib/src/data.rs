@@ -1,6 +1,9 @@
+use crate::results::*;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::BufRead;
 use std::io::Result;
+use std::rc::Rc;
 
 /// A letter along with its location in the word.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -36,8 +39,27 @@ impl WordRestrictions {
         }
     }
 
+    /// Adds restrictions arising from the given guess result.
+    pub fn update(&mut self, guess_result: &GuessResult) {
+        for (index, lr) in guess_result.letters.iter().enumerate() {
+            match lr {
+                LetterResult::Correct(letter) => {
+                    self.must_contain_here
+                        .insert(LocatedLetter::new(*letter, index as u8));
+                }
+                LetterResult::PresentNotHere(letter) => {
+                    self.must_contain_but_not_here
+                        .insert(LocatedLetter::new(*letter, index as u8));
+                }
+                LetterResult::NotPresent(letter) => {
+                    self.must_not_contain.insert(*letter);
+                }
+            }
+        }
+    }
+
     /// Returns `true` iff the given word satisfies these restrictions.
-    fn is_satisfied_by(&self, word: &str) -> bool {
+    pub fn is_satisfied_by(&self, word: &str) -> bool {
         self.must_contain_here
             .iter()
             .all(|ll| word.chars().nth(ll.location as usize) == Some(ll.letter))
@@ -54,7 +76,7 @@ impl WordRestrictions {
 
 /// Contains all the possible words for this Wordle game.
 pub struct WordBank {
-    all_words: Vec<String>,
+    all_words: Vec<Rc<String>>,
     max_word_length: usize,
 }
 
@@ -73,10 +95,10 @@ impl WordBank {
                         if max_word_length < word_length {
                             max_word_length = word_length;
                         }
-                        word.to_lowercase()
+                        Rc::new(word.to_lowercase())
                     })
                 })
-                .collect::<Result<Vec<String>>>()?,
+                .collect::<Result<Vec<Rc<String>>>>()?,
             max_word_length: max_word_length,
         })
     }
@@ -94,7 +116,7 @@ impl WordBank {
                     if max_word_length < word_length {
                         max_word_length = word_length;
                     }
-                    word.to_lowercase()
+                    Rc::new(word.to_lowercase())
                 })
                 .collect(),
             max_word_length: max_word_length,
@@ -102,8 +124,8 @@ impl WordBank {
     }
 
     /// Retrieves the full list of available words.
-    pub fn all_words(&self) -> Vec<&str> {
-        self.all_words.iter().map(AsRef::as_ref).collect()
+    pub fn all_words(&self) -> Vec<Rc<String>> {
+        self.all_words.iter().map(|word| Rc::clone(word)).collect()
     }
 
     /// Returns the number of possible words.
@@ -117,16 +139,34 @@ impl WordBank {
     }
 }
 
+/// Counts the number of words that have letters in certain locations.
+pub struct WordCounter {
+    num_words_by_ll: HashMap<LocatedLetter, u32>,
+}
+
+impl WordCounter {
+    pub fn new(bank: &WordBank) -> WordCounter {
+        let mut num_words_by_ll: HashMap<LocatedLetter, u32> = HashMap::new();
+        for word in bank.all_words() {
+            for (index, letter) in word.char_indices() {
+                *num_words_by_ll
+                    .entry(LocatedLetter::new(letter, index as u8))
+                    .or_insert(0) += 1;
+            }
+        }
+        WordCounter {
+            num_words_by_ll: num_words_by_ll,
+        }
+    }
+}
+
 /// Gets the list of possible words in the word bank that meet the given restrictions.
-pub fn get_possible_words<'a, 'b>(
-    restrictions: &'a WordRestrictions,
-    bank: &'b WordBank,
-) -> Vec<&'b str> {
+pub fn get_possible_words(restrictions: &WordRestrictions, bank: &WordBank) -> Vec<Rc<String>> {
     bank.all_words
         .iter()
         .filter_map(|word| {
             if restrictions.is_satisfied_by(word) {
-                return Some(word.as_str());
+                return Some(Rc::clone(word));
             }
             None
         })
@@ -138,6 +178,13 @@ mod tests {
 
     use super::*;
     use std::io::Cursor;
+
+    macro_rules! assert_rc_eq {
+        ($rc_vec:expr, $non_rc_vec:expr, $rc_type:ty) => {
+            let copy: Vec<$rc_type> = $rc_vec.iter().map(|thing| (**thing).clone()).collect();
+            assert_eq!(copy, $non_rc_vec);
+        };
+    }
 
     #[test]
     fn word_bank_get_possible_words_must_contain_here() -> Result<()> {
@@ -157,7 +204,7 @@ mod tests {
             &word_bank,
         );
 
-        assert_eq!(still_possible, vec!["wordb"]);
+        assert_rc_eq!(still_possible, vec!["wordb"], String);
         Ok(())
     }
 
@@ -176,7 +223,7 @@ mod tests {
             &word_bank,
         );
 
-        assert_eq!(still_possible, vec!["worda", "wordb", "smore"]);
+        assert_rc_eq!(still_possible, vec!["worda", "wordb", "smore"], String);
         Ok(())
     }
 
@@ -195,7 +242,7 @@ mod tests {
             &word_bank,
         );
 
-        assert_eq!(still_possible, vec!["other", "smore"]);
+        assert_rc_eq!(still_possible, vec!["other", "smore"], String);
         Ok(())
     }
 
@@ -205,7 +252,7 @@ mod tests {
 
         let word_bank = WordBank::from_reader(&mut cursor)?;
 
-        let still_possible: Vec<&str> = get_possible_words(
+        let still_possible = get_possible_words(
             &WordRestrictions {
                 must_contain_here: HashSet::from([LocatedLetter::new('o', 1)]),
                 must_contain_but_not_here: HashSet::from([LocatedLetter::new('b', 4)]),
@@ -214,8 +261,7 @@ mod tests {
             &word_bank,
         );
 
-        let empty: Vec<&str> = Vec::new();
-        assert_eq!(still_possible, empty);
+        assert!(still_possible.is_empty());
         Ok(())
     }
 }
