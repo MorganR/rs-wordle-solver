@@ -25,7 +25,7 @@ pub enum GameResult {
     /// Indicates that the guesser failed to guess the word, and provides the guesses that were given.
     Failure(Vec<String>),
     /// Indicates that the given word was not in the word bank.
-    UnknownWord(),
+    UnknownWord,
 }
 
 trait GuessSelector {
@@ -209,7 +209,7 @@ pub fn play_game(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank
     for _ in 1..=max_num_guesses {
         let maybe_guess = game.calculate_best_guess();
         if maybe_guess.is_none() {
-            return GameResult::UnknownWord();
+            return GameResult::UnknownWord;
         }
         let guess = maybe_guess.unwrap();
         guesses.push(String::from(guess));

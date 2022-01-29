@@ -37,7 +37,7 @@ fn update_guess_result_modifies_next_guess() {
 fn play_game_with_unknown_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
 
-    assert_eq!(play_game("nope", 10, &bank), GameResult::UnknownWord());
+    assert_eq!(play_game("nope", 10, &bank), GameResult::UnknownWord);
 }
 
 #[test]

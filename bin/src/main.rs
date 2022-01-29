@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
@@ -14,8 +14,18 @@ struct Args {
 
     /// If true, runs a benchmark to determine how many rounds are needed to guess every word in
     /// the words file. The benchmark is run instead of playing an interactive game.
-    #[clap(short = 'b', long)]
-    benchmark: bool,
+    #[clap(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Benchmark the solver against every word in the given words file.
+    Benchmark,
+    /// Run a single game with the given word.
+    Single { word: String },
+    /// Run an interactive game against the solver.
+    Interactive,
 }
 
 fn main() -> io::Result<()> {
@@ -26,10 +36,10 @@ fn main() -> io::Result<()> {
     let word_bank = WordBank::from_reader(&mut words_reader)?;
     println!("There are {} possible words.", word_bank.len());
 
-    if args.benchmark {
-        run_benchmark(&word_bank);
-    } else {
-        play_interactive_game(&word_bank)?;
+    match args.command {
+        Command::Benchmark => run_benchmark(&word_bank),
+        Command::Single { word } => play_single_game(&word, &word_bank),
+        Command::Interactive => play_interactive_game(&word_bank)?,
     }
 
     Ok(())
@@ -83,6 +93,31 @@ fn run_benchmark(word_bank: &WordBank) {
         "\n**Average number of guesses:** {:.2} +/- {:.2}",
         average, std_dev
     );
+}
+
+fn play_single_game(word: &str, word_bank: &WordBank) {
+    let result = play_game(word, 128, word_bank);
+    match result {
+        GameResult::Success(guesses) => {
+            println!("Solved it! It took me {} guesses.", guesses.len());
+            for guess in guesses.iter() {
+                println!("\t{}", guess);
+            }
+        }
+        GameResult::Failure(guesses) => {
+            println!(
+                "I still couldn't solve it after {} guesses :(",
+                guesses.len()
+            );
+            for guess in guesses.iter() {
+                println!("\t{}", guess);
+            }
+        }
+        GameResult::UnknownWord => {
+            eprintln!("Error: given word not in the word list.");
+            std::process::exit(1);
+        }
+    }
 }
 
 fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
