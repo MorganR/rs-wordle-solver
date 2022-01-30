@@ -61,7 +61,7 @@ lucky guesses early on, but with a dramatically improved long tail.
 
 This selects the word that maximizes a score, based on both the presence and the the location of
 that letter in the possible words. The score is computed for each letter and then summed. Each
-letter is scored as follows:
+letter is scored as follows.
 
 For each letter, score:
 
@@ -82,19 +82,17 @@ For each letter, score:
 |Num guesses|Num games|
 |-----------|---------|
 |1|1|
-|2|180|
-|3|1443|
-|4|1831|
-|5|725|
-|6|262|
-|7|101|
-|8|41|
-|9|13|
-|10|3|
-|11|1|
-|12|1|
+|2|124|
+|3|1559|
+|4|1997|
+|5|634|
+|6|195|
+|7|64|
+|8|20|
+|9|6|
+|10|2|
 
-**Average number of guesses:** 4.00 +/- 1.15
+**Average number of guesses:** 3.90 +/- 0.99
 
 ## Speed Benchmark
 
@@ -124,8 +122,8 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; fini
 
 ```
 running 2 tests
-test bench_guess_random_improved_words ... bench:   1,961,780 ns/iter (+/- 44,518)
-test bench_guess_random_wordle_words   ... bench:   5,502,857 ns/iter (+/- 237,024)
+test bench_guess_random_improved_words ... bench:   3,542,067 ns/iter (+/- 803,738)
+test bench_guess_random_wordle_words   ... bench:  10,692,953 ns/iter (+/- 3,955,187)
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 9.11s
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 6.56s
 ```
