@@ -13,8 +13,7 @@ pub trait Guesser {
 /// Attempts to guess the given word within the maximum number of guesses, using words from the
 /// word bank.
 pub fn play_game(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank) -> GameResult {
-    let word_counter = WordCounter::new(&word_bank.all_words());
-    let mut guesser = ScoreLocatedLettersGuesser::new(word_bank, word_counter);
+    let mut guesser = RandomGuesser::new(word_bank);
     let mut guesses: Vec<String> = Vec::new();
     for _ in 1..=max_num_guesses {
         let maybe_guess = guesser.select_next_guess();
@@ -57,6 +56,47 @@ pub fn get_result_for_guess(objective: &str, guess: &str) -> GuessResult {
                 LetterResult::NotPresent(letter)
             })
             .collect(),
+    }
+}
+
+/// Guesses at random from the possible words that meet the restrictions.
+pub struct RandomGuesser {
+    possible_words: Vec<Rc<String>>,
+    restrictions: WordRestrictions,
+}
+
+impl RandomGuesser {
+    pub fn new(bank: &WordBank) -> RandomGuesser {
+        RandomGuesser {
+            possible_words: bank.all_words(),
+            restrictions: WordRestrictions::new(),
+        }
+    }
+}
+
+impl Guesser for RandomGuesser {
+    fn update<'a, 'b>(&mut self, _guess: &'a str, result: &'b GuessResult) {
+        self.restrictions.update(result);
+        self.possible_words = self
+            .possible_words
+            .iter()
+            .filter_map(|word| {
+                if self.restrictions.is_satisfied_by(word) {
+                    return Some(Rc::clone(word));
+                }
+                None
+            })
+            .collect();
+    }
+
+    fn select_next_guess(&self) -> Option<Rc<String>> {
+        if self.possible_words.is_empty() {
+            return None;
+        }
+        let random: usize = rand::random();
+        self.possible_words
+            .get(random % self.possible_words.len())
+            .map(Rc::clone)
     }
 }
 
@@ -397,7 +437,6 @@ mod test {
         assert_eq!(scorer.score_word("other"), 0 + 0 + 0 + 0 + 0);
 
         let next_guess = scorer.select_next_guess().unwrap();
-        assert!(next_guess.as_str() == "below"
-                || next_guess.as_str() == "endow");
+        assert!(next_guess.as_str() == "below" || next_guess.as_str() == "endow");
     }
 }

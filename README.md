@@ -16,6 +16,29 @@ This library has several word lists:
 
 When benchmarked against the whole *improved* words list:
 
+### RandomGuesser
+
+This selects randomly from the words that are still possible. It's a baseline worst-case selection.
+Any other algorithm should be better than this.
+
+One sample benchmark:
+
+|Num guesses|Num games|
+|-----------|---------|
+|2|99|
+|3|812|
+|4|1584|
+|5|1207|
+|6|572|
+|7|205|
+|8|80|
+|9|33|
+|10|5|
+|11|4|
+|12|1|
+
+**Average number of guesses:** 4.54 +/- 1.30
+
 ### MaxUniqueLetterFrequencySelector
 
 This is a fairly naive selector. It selects the word that maximizes the sum of the frequency of
@@ -95,6 +118,16 @@ For each letter, score:
 **Average number of guesses:** 3.90 +/- 0.99
 
 ## Speed Benchmark
+
+### RandomGuesser
+
+```
+running 2 tests
+test bench_guess_random_improved_words ... bench:     106,402 ns/iter (+/- 7,063)
+test bench_guess_random_wordle_words   ... bench:     300,526 ns/iter (+/- 21,800)
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 10.01s
+```
 
 ### MaxUniqueLetterFrequencySelector
 
