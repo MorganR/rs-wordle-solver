@@ -13,7 +13,8 @@ pub trait Guesser {
 /// Attempts to guess the given word within the maximum number of guesses, using words from the
 /// word bank.
 pub fn play_game(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank) -> GameResult {
-    let mut guesser = RandomGuesser::new(word_bank);
+    let mut guesser =
+        MostEliminationsGuesser::new(&word_bank, WordCounter::new(&word_bank.all_words()));
     let mut guesses: Vec<String> = Vec::new();
     for _ in 1..=max_num_guesses {
         let maybe_guess = guesser.select_next_guess();
@@ -240,7 +241,7 @@ impl<'a> Guesser for MaxUnguessedUniqueLetterFrequencyGuesser<'a> {
 ///
 ///         * 1 point for every possible word with this letter in the same place.
 pub struct ScoreLocatedLettersGuesser {
-    all_ungessed_words: Vec<Rc<String>>,
+    all_unguessed_words: Vec<Rc<String>>,
     possible_words: Vec<Rc<String>>,
     counter: WordCounter,
     restrictions: WordRestrictions,
@@ -249,7 +250,7 @@ pub struct ScoreLocatedLettersGuesser {
 impl ScoreLocatedLettersGuesser {
     pub fn new(bank: &WordBank, counter: WordCounter) -> ScoreLocatedLettersGuesser {
         ScoreLocatedLettersGuesser {
-            all_ungessed_words: bank.all_words(),
+            all_unguessed_words: bank.all_words(),
             possible_words: bank.all_words(),
             restrictions: WordRestrictions::new(),
             counter: counter,
@@ -306,16 +307,15 @@ impl Guesser for ScoreLocatedLettersGuesser {
     fn update<'a, 'b>(&mut self, guess: &'a str, result: &'b GuessResult) {
         self.restrictions.update(result);
         if let Some(position) = self
-            .all_ungessed_words
+            .all_unguessed_words
             .iter()
             .position(|word| word.as_str() == guess)
         {
-            self.all_ungessed_words.swap_remove(position);
+            self.all_unguessed_words.swap_remove(position);
         }
         // We only need to filter by the current guess's restrictions, since all previous
         // restrictions have already been accounted for.
-        // Unless the current guess was the winning guess, this should also filter out the current
-        // guess.
+        // Unless the current guess was the winning guess, this also filters out the current guess.
         let restriction = WordRestrictions::from_result(result);
         self.possible_words = self
             .possible_words
@@ -333,7 +333,7 @@ impl Guesser for ScoreLocatedLettersGuesser {
     fn select_next_guess(&self) -> Option<Rc<String>> {
         if self.possible_words.len() > 2 {
             return self
-                .all_ungessed_words
+                .all_unguessed_words
                 .iter()
                 .max_by_key(|word| self.score_word(word.as_str()))
                 .map(|word| Rc::clone(word));
@@ -342,6 +342,109 @@ impl Guesser for ScoreLocatedLettersGuesser {
             .possible_words
             .iter()
             .max_by_key(|word| self.score_word(word.as_str()))
+            .map(|word| Rc::clone(word));
+    }
+}
+
+/// Chooses the word that is expected to eliminate the most other words.
+pub struct MostEliminationsGuesser {
+    all_unguessed_words: Vec<Rc<String>>,
+    possible_words: Vec<Rc<String>>,
+    counter: WordCounter,
+}
+
+impl MostEliminationsGuesser {
+    pub fn new(bank: &WordBank, counter: WordCounter) -> MostEliminationsGuesser {
+        MostEliminationsGuesser {
+            all_unguessed_words: bank.all_words(),
+            possible_words: bank.all_words(),
+            counter: counter,
+        }
+    }
+
+    fn compute_expected_eliminations(&self, word: &str) -> f64 {
+        let mut sum = 0.0;
+        for (index, letter) in word.char_indices() {
+            sum += self.compute_expected_eliminations_for_letter(
+                LocatedLetter::new(letter, index as u8),
+                index == 0
+                    || word
+                        .chars()
+                        .take(index)
+                        .all(|other_letter| other_letter != letter),
+            );
+        }
+        sum
+    }
+
+    fn compute_expected_eliminations_for_letter(
+        &self,
+        located_letter: LocatedLetter,
+        is_new_letter: bool,
+    ) -> f64 {
+        let num_if_correct = self.counter.num_words_with_located_letter(&located_letter) as f64;
+        let num_if_present_not_here =
+            self.counter.num_words_with_letter(located_letter.letter) as f64 - num_if_correct;
+        let total = self.possible_words.len() as f64;
+        let eliminations_if_correct = total - num_if_correct;
+        let eliminations_if_present_not_here = total - num_if_present_not_here;
+        let expected_eliminations_for_present_somewhere =
+            eliminations_if_correct * num_if_correct / total
+                + eliminations_if_present_not_here * num_if_present_not_here / total;
+        if !is_new_letter {
+            // Only expect the eliminations tied to location, since we've already included the
+            // expected eliminations for if the letter is not present at all.
+            return expected_eliminations_for_present_somewhere;
+        }
+        let num_if_not_present = total - num_if_correct - num_if_present_not_here;
+        let eliminations_if_not_present = total - num_if_not_present;
+        return expected_eliminations_for_present_somewhere
+            + eliminations_if_not_present * num_if_not_present / total;
+    }
+}
+
+impl Guesser for MostEliminationsGuesser {
+    fn update<'a, 'b>(&mut self, guess: &'a str, result: &'b GuessResult) {
+        if let Some(position) = self
+            .all_unguessed_words
+            .iter()
+            .position(|word| word.as_str() == guess)
+        {
+            self.all_unguessed_words.swap_remove(position);
+        }
+        // We only need to filter by the current guess's restrictions, since all previous
+        // restrictions have already been accounted for.
+        // Unless the current guess was the winning guess, this also filters out the current guess.
+        let restriction = WordRestrictions::from_result(result);
+        self.possible_words = self
+            .possible_words
+            .iter()
+            .filter_map(|word| {
+                if restriction.is_satisfied_by(word.as_str()) {
+                    return Some(Rc::clone(word));
+                }
+                self.counter.remove(word.as_str());
+                None
+            })
+            .collect();
+    }
+
+    fn select_next_guess(&self) -> Option<Rc<String>> {
+        if self.possible_words.len() > 2 {
+            return self
+                .all_unguessed_words
+                .iter()
+                .max_by_key(|word| {
+                    // f64 doesn't implement `Ord`, so multiple by 100 to keep some precision then
+                    // convert to i64.
+                    (self.compute_expected_eliminations(word.as_str()) * 100.0) as i64
+                })
+                .map(|word| Rc::clone(word));
+        }
+        return self
+            .possible_words
+            .iter()
+            .max_by_key(|word| (self.compute_expected_eliminations(word.as_str()) * 100.0) as i64)
             .map(|word| Rc::clone(word));
     }
 }

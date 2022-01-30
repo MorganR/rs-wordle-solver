@@ -6,9 +6,14 @@ An automated solver for the popular game: [wordle](https://www.powerlanguage.co.
 
 This library has several word lists:
 
-*  `data/wordle-words.txt`: this list is the combination of all possible guesses and all answer words from [Wordle](https://www.powerlanguage.co.uk/wordle/). Many of the allowed Wordle guesses are pretty much nonsense, so there is also:
+*  `data/wordle-words.txt`: this list is the combination of all possible guesses and all answer
+   words from [Wordle](https://www.powerlanguage.co.uk/wordle/). Many of the allowed Wordle guesses
+   are pretty much nonsense, so there is also:
 
-*  `data/improved-words.txt`: this list combines all 5-letter words from the [Corncob list of more than 58,000 English words](http://www.mieliestronk.com/wordlist.html), the [MIT 10000 English words list](https://www.mit.edu/~ecprice/wordlist.10000), and any remaining Wordle answer words.
+*  `data/improved-words.txt`: this list combines all 5-letter words from the [Corncob list of more
+   than 58,000 English words](http://www.mieliestronk.com/wordlist.html), the
+   [MIT 10000 English words list](https://www.mit.edu/~ecprice/wordlist.10000), and any remaining
+   Wordle answer words.
 
 *  A random set of 1000 words taken from each list.
 
@@ -117,6 +122,36 @@ For each letter, score:
 
 **Average number of guesses:** 3.90 +/- 0.99
 
+### MostExpectedEliminationsGuesser
+
+This selects the word that is expected to eliminate the most other words. The expected number of
+eliminations is computed approximately. For each letter, expected number of eliminations is
+computed for each possible state:
+
+* *{expected number of eliminated words if in state}* * *{fraction of possible words matching this state}*
+
+So for example, with the words `["could", "match", "coast"]`, these would be computed as follows
+for the letter `c` in `could`:
+
+* if correct: `match` is removed, so: 1 * (2/3)
+* if present not here: `could` and `coast` are removed, so: 2 * (1/3)
+* if not present: all are removed, so: 3 * (0/3) *(note: this expectation is skipped if this letter*
+  *has already been checked at another location)*.
+
+These per-letter expectations are then summed together to get the expectation value for the word.
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|72|
+|3|1280|
+|4|2532|
+|5|658|
+|6|56|
+|7|3|
+
+**Average number of guesses:** 3.86 +/- 0.72
+
 ## Speed Benchmark
 
 ### RandomGuesser
@@ -159,4 +194,14 @@ test bench_guess_random_improved_words ... bench:   3,542,067 ns/iter (+/- 803,7
 test bench_guess_random_wordle_words   ... bench:  10,692,953 ns/iter (+/- 3,955,187)
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 6.56s
+```
+
+### MostExpectedEliminationsGuesser
+
+```
+running 2 tests
+test bench_guess_random_improved_words ... bench:   3,352,427 ns/iter (+/- 569,059)
+test bench_guess_random_wordle_words   ... bench:  10,573,207 ns/iter (+/- 2,574,954)
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 6.23s
 ```
