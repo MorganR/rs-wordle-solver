@@ -63,32 +63,38 @@ This selects the word that maximizes a score, based on both the presence and the
 that letter in the possible words. The score is computed for each letter and then summed. Each
 letter is scored as follows:
 
-* If we know this letter must go here, add 1 point.
-* If we know this letter must be in the word:
+For each letter, score:
 
-  * If we don't yet know if it should go here, add 1 point for every possible word that has it
-    here.
-  * If we know it can't go here, add 0 points.
+* 1 point if the letter must be in this location.
+* 1 point for every word with this letter in this place if the letter's location is not yet
+  known, and this is a new location for the letter.
+* If this letter is completely new:
 
-* If we haven't guessed this letter yet, add 2 points for every word that has this letter in the
-  same place, and 1 point for every word that has this letter somewhere else.
+   * If this letter has not yet been scored in this word:
+
+      * 2 points for every possible word with this letter in the same place.
+      * 1 point for every possible word with this letter in another place.
+   
+   * Else:
+
+      * 1 point for every possible word with this letter in the same place.
 
 |Num guesses|Num games|
 |-----------|---------|
 |1|1|
 |2|180|
-|3|1455|
-|4|1802|
-|5|727|
-|6|276|
-|7|105|
-|8|39|
-|9|12|
+|3|1443|
+|4|1831|
+|5|725|
+|6|262|
+|7|101|
+|8|41|
+|9|13|
 |10|3|
 |11|1|
 |12|1|
 
-**Average number of guesses:** 4.01 +/- 1.15
+**Average number of guesses:** 4.00 +/- 1.15
 
 ## Speed Benchmark
 
@@ -118,8 +124,8 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; fini
 
 ```
 running 2 tests
-test bench_guess_random_improved_words ... bench:   2,051,653 ns/iter (+/- 571,471)
-test bench_guess_random_wordle_words   ... bench:   5,683,104 ns/iter (+/- 759,983)
+test bench_guess_random_improved_words ... bench:   1,961,780 ns/iter (+/- 44,518)
+test bench_guess_random_wordle_words   ... bench:   5,502,857 ns/iter (+/- 237,024)
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 9.49s
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 9.11s
 ```

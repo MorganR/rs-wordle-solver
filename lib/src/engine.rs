@@ -39,7 +39,10 @@ pub fn play_game(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank
 /// Determines the result of the given `guess` when applied to the given `objective`.
 pub fn get_result_for_guess(objective: &str, guess: &str) -> GuessResult {
     if objective.len() != guess.len() {
-        panic!("Objective ({}) must have the same length as the guess ({})", objective, guess); 
+        panic!(
+            "Objective ({}) must have the same length as the guess ({})",
+            objective, guess
+        );
     }
     GuessResult {
         letters: guess
@@ -183,13 +186,19 @@ impl<'a> Guesser for MaxUnguessedUniqueLetterFrequencyGuesser<'a> {
 ///
 /// * For each letter, score:
 ///
-///   * 1 point if the letter's location is already known.
+///   * 1 point if the letter must be in this location.
 ///   * 1 point for every word with this letter in this place if the letter's location is not yet
 ///     known, and this is a new location for the letter.
 ///   * If this letter is completely new:
 ///
-///      * 2 points for every possible word with this letter in the same place.
-///      * 1 point for every possible word with this letter in another place.
+///      * If this letter has not yet been scored in this word:
+///
+///         * 2 points for every possible word with this letter in the same place.
+///         * 1 point for every possible word with this letter in another place.
+///     
+///      * Else:
+///
+///         * 1 point for every possible word with this letter in the same place.
 pub struct ScoreLocatedLettersGuesser {
     possible_words: Vec<Rc<String>>,
     counter: WordCounter,
@@ -208,9 +217,6 @@ impl ScoreLocatedLettersGuesser {
     fn score_word(&self, word: &str) -> u32 {
         let mut sum = 0;
         for (index, letter) in word.char_indices() {
-            if index > 0 && word.chars().take(index).any(|other_letter| other_letter == letter) {
-                continue;
-            }
             if self
                 .restrictions
                 .must_contain_here
@@ -221,13 +227,20 @@ impl ScoreLocatedLettersGuesser {
                 continue;
             }
             if self
+                // If the letter should be in the word, and this is a new location for it.
+                // We don't need to confirm that the locations differ, because those words should
+                // have already been removed from the possible words.
                 .restrictions
                 .must_contain_but_not_here
                 .iter()
                 .chain(self.restrictions.must_contain_here.iter())
                 .any(|ll| ll.letter == letter)
-                // We don't need to confirm that the locations differ, because those words should
-                // have already been removed from the possible words.
+                // Or if this letter has already been scored once
+                || (index > 0
+                && word
+                    .chars()
+                    .take(index)
+                    .any(|other_letter| other_letter == letter))
             {
                 sum += self
                     .counter
@@ -273,5 +286,68 @@ impl Guesser for ScoreLocatedLettersGuesser {
             .iter()
             .max_by_key(|word| self.score_word(word.as_str()))
             .map(|word| Rc::clone(word))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn to_string_vec(words: Vec<&str>) -> Vec<String> {
+        words.iter().map(|word| word.to_string()).collect()
+    }
+
+    #[test]
+    fn score_located_letters_guesser_score_word() {
+        let bank = WordBank::from_vec(to_string_vec(vec![
+            "alpha", "allot", "begot", "below", "endow", "ingot",
+        ]));
+        let scorer = ScoreLocatedLettersGuesser::new(&bank, WordCounter::new(&bank.all_words()));
+
+        assert_eq!(scorer.score_word("alpha"), 4 + 5 + 2 + 2 + 1);
+        assert_eq!(scorer.score_word("allot"), 4 + 5 + 2 + 10 + 6);
+        assert_eq!(scorer.score_word("begot"), 4 + 5 + 4 + 10 + 6);
+        assert_eq!(scorer.score_word("below"), 4 + 5 + 5 + 10 + 4);
+        assert_eq!(scorer.score_word("endow"), 4 + 4 + 2 + 10 + 4);
+        assert_eq!(scorer.score_word("ingot"), 2 + 4 + 4 + 10 + 6);
+        assert_eq!(scorer.score_word("other"), 5 + 3 + 1 + 3 + 0);
+    }
+
+    #[test]
+    fn score_located_letters_guesser_select_next_guess() {
+        let bank = WordBank::from_vec(to_string_vec(vec![
+            "alpha", "allot", "begot", "below", "endow", "ingot",
+        ]));
+        let scorer = ScoreLocatedLettersGuesser::new(&bank, WordCounter::new(&bank.all_words()));
+
+        assert_eq!(scorer.select_next_guess().unwrap().as_str(), "begot");
+    }
+
+    #[test]
+    fn score_located_letters_guesser_update_and_score_word() {
+        let bank = WordBank::from_vec(to_string_vec(vec![
+            "alpha", "allot", "begot", "below", "endow", "ingot",
+        ]));
+        let mut scorer =
+            ScoreLocatedLettersGuesser::new(&bank, WordCounter::new(&bank.all_words()));
+
+        scorer.update(
+            "begot",
+            &GuessResult {
+                letters: vec![
+                    LetterResult::NotPresent('b'),
+                    LetterResult::PresentNotHere('e'),
+                    LetterResult::NotPresent('g'),
+                    LetterResult::Correct('o'),
+                    LetterResult::NotPresent('t'),
+                ],
+            },
+        );
+        // Remaining possible words: 'endow'
+
+        assert_eq!(scorer.score_word("alpha"), 0 + 0 + 0 + 0 + 0);
+        assert_eq!(scorer.score_word("below"), 0 + 0 + 0 + 1 + 2);
+        assert_eq!(scorer.score_word("endow"), 1 + 2 + 2 + 1 + 2);
+        assert_eq!(scorer.score_word("other"), 0 + 0 + 0 + 0 + 0);
     }
 }
