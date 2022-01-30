@@ -17,14 +17,10 @@ fn bench_guess_random_wordle_words(b: &mut Bencher) -> Result<()> {
     let bank = WordBank::from_reader(&mut all_words)?;
 
     let test_words: Vec<String> = test_words.lines().collect::<Result<Vec<String>>>()?;
-    let mut test_word_iter = test_words.iter();
+    let mut test_word_iter = test_words.iter().cycle();
 
     b.iter(|| {
-        let test_word = test_word_iter.next().unwrap_or_else(|| {
-            // Reset the iterator.
-            test_word_iter = test_words.iter();
-            test_word_iter.next().unwrap()
-        });
+        let test_word = test_word_iter.next().unwrap();
         return play_game(test_word, 128, &bank);
     });
 
@@ -39,14 +35,10 @@ fn bench_guess_random_improved_words(b: &mut Bencher) -> Result<()> {
     let bank = WordBank::from_reader(&mut all_words)?;
 
     let test_words: Vec<String> = test_words.lines().collect::<Result<Vec<String>>>()?;
-    let mut test_word_iter = test_words.iter();
+    let mut test_word_iter = test_words.iter().cycle();
 
     b.iter(|| {
-        let test_word = test_word_iter.next().unwrap_or_else(|| {
-            // Reset the iterator.
-            test_word_iter = test_words.iter();
-            test_word_iter.next().unwrap()
-        });
+        let test_word = test_word_iter.next().unwrap();
         return play_game(test_word, 128, &bank);
     });
 

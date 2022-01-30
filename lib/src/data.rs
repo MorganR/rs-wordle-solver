@@ -39,6 +39,13 @@ impl WordRestrictions {
         }
     }
 
+    /// Returns the restrictions imposed by the given result.
+    pub fn from_result(result: &GuessResult) -> WordRestrictions {
+        let mut restrictions = WordRestrictions::new();
+        restrictions.update(result);
+        restrictions
+    }
+
     /// Adds restrictions arising from the given guess result.
     pub fn update(&mut self, guess_result: &GuessResult) {
         for (index, lr) in guess_result.letters.iter().enumerate() {
@@ -98,6 +105,7 @@ impl WordBank {
                         Rc::new(word.to_lowercase())
                     })
                 })
+                .filter(|maybe_word| maybe_word.as_ref().map_or(true, |word| word.len() > 0))
                 .collect::<Result<Vec<Rc<String>>>>()?,
             max_word_length: max_word_length,
         })
@@ -111,12 +119,15 @@ impl WordBank {
         WordBank {
             all_words: words
                 .iter()
-                .map(|word| {
+                .filter_map(|word| {
                     let word_length = word.len();
+                    if word_length == 0 {
+                        return None;
+                    }
                     if max_word_length < word_length {
                         max_word_length = word_length;
                     }
-                    Rc::new(word.to_lowercase())
+                    Some(Rc::new(word.to_lowercase()))
                 })
                 .collect(),
             max_word_length: max_word_length,
@@ -140,23 +151,65 @@ impl WordBank {
 }
 
 /// Counts the number of words that have letters in certain locations.
+#[derive(Clone)]
 pub struct WordCounter {
     num_words_by_ll: HashMap<LocatedLetter, u32>,
+    num_words_by_letter: HashMap<char, u32>,
 }
 
 impl WordCounter {
-    pub fn new(bank: &WordBank) -> WordCounter {
+    /// Creates a new word counter based on the given word list.
+    pub fn new(words: &Vec<Rc<String>>) -> WordCounter {
         let mut num_words_by_ll: HashMap<LocatedLetter, u32> = HashMap::new();
-        for word in bank.all_words() {
+        let mut num_words_by_letter: HashMap<char, u32> = HashMap::new();
+        for word in words {
             for (index, letter) in word.char_indices() {
                 *num_words_by_ll
                     .entry(LocatedLetter::new(letter, index as u8))
                     .or_insert(0) += 1;
+                if index == 0
+                    || word
+                        .chars()
+                        .take(index)
+                        .all(|other_letter| other_letter != letter)
+                {
+                    *num_words_by_letter.entry(letter).or_insert(0) += 1;
+                }
             }
         }
         WordCounter {
             num_words_by_ll: num_words_by_ll,
+            num_words_by_letter: num_words_by_letter,
         }
+    }
+
+    /// Removes the given word from the counter.
+    pub fn remove(&mut self, word: &str) {
+        for (index, letter) in word.char_indices() {
+            self.num_words_by_ll
+                .entry(LocatedLetter::new(letter, index as u8))
+                .and_modify(|num_words| *num_words -= 1);
+            if index == 0
+                || word
+                    .chars()
+                    .take(index)
+                    .all(|other_letter| other_letter != letter)
+            {
+                self.num_words_by_letter
+                    .entry(letter)
+                    .and_modify(|num_words| *num_words -= 1);
+            }
+        }
+    }
+
+    /// Retrieves the count of words with the given letter at the given location.
+    pub fn num_words_with_located_letter(&self, ll: &LocatedLetter) -> u32 {
+        *self.num_words_by_ll.get(ll).unwrap_or(&0)
+    }
+
+    /// Retrieves the count of words that contain the given letter.
+    pub fn num_words_with_letter(&self, letter: char) -> u32 {
+        *self.num_words_by_letter.get(&letter).unwrap_or(&0)
     }
 }
 
@@ -263,5 +316,121 @@ mod tests {
 
         assert!(still_possible.is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn word_counter_num_words_with_located_letter() {
+        let counter = WordCounter::new(&rc_string_vec(vec!["hello", "hallo", "worda"]));
+
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('h', 0)),
+            2
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('e', 1)),
+            1
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('l', 2)),
+            2
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('l', 3)),
+            2
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('o', 4)),
+            2
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('a', 1)),
+            1
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('w', 0)),
+            1
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('o', 1)),
+            1
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('r', 2)),
+            1
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('d', 3)),
+            1
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('a', 4)),
+            1
+        );
+
+        // Missing letters:
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('h', 1)),
+            0
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('z', 0)),
+            0
+        );
+    }
+
+    #[test]
+    fn word_counter_num_words_with_letter() {
+        let counter = WordCounter::new(&rc_string_vec(vec!["hello", "hallo", "worda"]));
+
+        assert_eq!(counter.num_words_with_letter('h'), 2);
+        assert_eq!(counter.num_words_with_letter('e'), 1);
+        assert_eq!(counter.num_words_with_letter('l'), 2);
+        assert_eq!(counter.num_words_with_letter('o'), 3);
+        assert_eq!(counter.num_words_with_letter('a'), 2);
+        assert_eq!(counter.num_words_with_letter('w'), 1);
+        assert_eq!(counter.num_words_with_letter('r'), 1);
+        assert_eq!(counter.num_words_with_letter('d'), 1);
+
+        // Missing letters:
+        assert_eq!(counter.num_words_with_letter('z'), 0);
+    }
+
+    #[test]
+    fn word_counter_remove() {
+        let mut counter = WordCounter::new(&rc_string_vec(vec!["hello", "hallo", "worda"]));
+
+        counter.remove("hallo");
+
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('h', 0)),
+            1
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('a', 1)),
+            0
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('l', 2)),
+            1
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('l', 3)),
+            1
+        );
+        assert_eq!(
+            counter.num_words_with_located_letter(&LocatedLetter::new('o', 4)),
+            1
+        );
+        assert_eq!(counter.num_words_with_letter('h'), 1);
+        assert_eq!(counter.num_words_with_letter('l'), 1);
+        assert_eq!(counter.num_words_with_letter('o'), 2);
+        assert_eq!(counter.num_words_with_letter('a'), 1);
+    }
+
+    fn rc_string_vec(vec_str: Vec<&'static str>) -> Vec<Rc<String>> {
+        vec_str
+            .iter()
+            .map(|word| Rc::new(word.to_string()))
+            .collect()
     }
 }

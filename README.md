@@ -57,6 +57,39 @@ lucky guesses early on, but with a dramatically improved long tail.
 
 **Average number of guesses:** 4.13 +/- 0.88
 
+### ScoreLocatedLettersGuesser
+
+This selects the word that maximizes a score, based on both the presence and the the location of
+that letter in the possible words. The score is computed for each letter and then summed. Each
+letter is scored as follows:
+
+* If we know this letter must go here, add 1 point.
+* If we know this letter must be in the word:
+
+  * If we don't yet know if it should go here, add 1 point for every possible word that has it
+    here.
+  * If we know it can't go here, add 0 points.
+
+* If we haven't guessed this letter yet, add 2 points for every word that has this letter in the
+  same place, and 1 point for every word that has this letter somewhere else.
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|180|
+|3|1455|
+|4|1802|
+|5|727|
+|6|276|
+|7|105|
+|8|39|
+|9|12|
+|10|3|
+|11|1|
+|12|1|
+
+**Average number of guesses:** 4.01 +/- 1.15
+
 ## Speed Benchmark
 
 ### MaxUniqueLetterFrequencySelector
@@ -79,4 +112,14 @@ test bench_guess_random_improved_words ... bench:   3,944,031 ns/iter (+/- 863,4
 test bench_guess_random_wordle_words   ... bench:  11,516,727 ns/iter (+/- 3,847,099)
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 7.09s
+```
+
+### ScoreLocatedLettersGuesser
+
+```
+running 2 tests
+test bench_guess_random_improved_words ... bench:   2,051,653 ns/iter (+/- 571,471)
+test bench_guess_random_wordle_words   ... bench:   5,683,104 ns/iter (+/- 759,983)
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 9.49s
 ```
