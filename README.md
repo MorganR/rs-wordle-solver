@@ -158,10 +158,10 @@ These per-letter expectations are then summed together to get the expectation va
 
 ```
 running 2 tests
-test bench_guess_random_improved_words ... bench:     106,402 ns/iter (+/- 7,063)
-test bench_guess_random_wordle_words   ... bench:     300,526 ns/iter (+/- 21,800)
+test bench_guess_random_improved_words ... bench:     103,927 ns/iter (+/- 9,880)
+test bench_guess_random_wordle_words   ... bench:     289,432 ns/iter (+/- 33,253)
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 10.01s
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 9.15s
 ```
 
 ### MaxUniqueLetterFrequencySelector

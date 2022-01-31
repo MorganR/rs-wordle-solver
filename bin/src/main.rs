@@ -141,10 +141,10 @@ fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
         let guess = guesser.select_next_guess().unwrap();
         println!("I'm guessing: {}. How did I do?", guess);
 
-        let mut result = get_result_for_guess(guess.as_str());
+        let mut result = get_result_for_guess(guess.as_ref());
         while result.is_err() {
             println!("{}", result.unwrap_err());
-            result = get_result_for_guess(guess.as_str());
+            result = get_result_for_guess(guess.as_ref());
         }
 
         let result = result.unwrap();
@@ -161,7 +161,7 @@ fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
             return Ok(());
         }
 
-        guesser.update(guess.as_str(), &result);
+        guesser.update(guess.as_ref(), &result);
     }
 
     println!("I couldn't guess it :(");

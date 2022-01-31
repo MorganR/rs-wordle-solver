@@ -17,9 +17,9 @@ pub struct GuessResult {
 #[derive(Debug, Eq, PartialEq)]
 pub enum GameResult {
     /// Indicates that the guesser won the game, and provides the guesses that were given.
-    Success(Vec<String>),
+    Success(Vec<Box<str>>),
     /// Indicates that the guesser failed to guess the word, and provides the guesses that were given.
-    Failure(Vec<String>),
+    Failure(Vec<Box<str>>),
     /// Indicates that the given word was not in the word bank.
     UnknownWord,
 }

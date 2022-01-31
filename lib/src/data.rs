@@ -83,7 +83,7 @@ impl WordRestrictions {
 
 /// Contains all the possible words for this Wordle game.
 pub struct WordBank {
-    all_words: Vec<Rc<String>>,
+    all_words: Vec<Rc<str>>,
     max_word_length: usize,
 }
 
@@ -102,11 +102,15 @@ impl WordBank {
                         if max_word_length < word_length {
                             max_word_length = word_length;
                         }
-                        Rc::new(word.to_lowercase())
+                        Rc::from(word.to_lowercase().as_str())
                     })
                 })
-                .filter(|maybe_word| maybe_word.as_ref().map_or(true, |word| word.len() > 0))
-                .collect::<Result<Vec<Rc<String>>>>()?,
+                .filter(|maybe_word| {
+                    maybe_word
+                        .as_ref()
+                        .map_or(true, |word: &Rc<str>| word.len() > 0)
+                })
+                .collect::<Result<Vec<Rc<str>>>>()?,
             max_word_length: max_word_length,
         })
     }
@@ -127,7 +131,7 @@ impl WordBank {
                     if max_word_length < word_length {
                         max_word_length = word_length;
                     }
-                    Some(Rc::new(word.to_lowercase()))
+                    Some(Rc::from(word.to_lowercase().as_str()))
                 })
                 .collect(),
             max_word_length: max_word_length,
@@ -135,7 +139,7 @@ impl WordBank {
     }
 
     /// Retrieves the full list of available words.
-    pub fn all_words(&self) -> Vec<Rc<String>> {
+    pub fn all_words(&self) -> Vec<Rc<str>> {
         self.all_words.iter().map(|word| Rc::clone(word)).collect()
     }
 
@@ -159,7 +163,7 @@ pub struct WordCounter {
 
 impl WordCounter {
     /// Creates a new word counter based on the given word list.
-    pub fn new(words: &Vec<Rc<String>>) -> WordCounter {
+    pub fn new(words: &Vec<Rc<str>>) -> WordCounter {
         let mut num_words_by_ll: HashMap<LocatedLetter, u32> = HashMap::new();
         let mut num_words_by_letter: HashMap<char, u32> = HashMap::new();
         for word in words {
@@ -214,7 +218,7 @@ impl WordCounter {
 }
 
 /// Gets the list of possible words in the word bank that meet the given restrictions.
-pub fn get_possible_words(restrictions: &WordRestrictions, bank: &WordBank) -> Vec<Rc<String>> {
+pub fn get_possible_words(restrictions: &WordRestrictions, bank: &WordBank) -> Vec<Rc<str>> {
     bank.all_words
         .iter()
         .filter_map(|word| {
@@ -233,9 +237,14 @@ mod tests {
     use std::io::Cursor;
 
     macro_rules! assert_rc_eq {
-        ($rc_vec:expr, $non_rc_vec:expr, $rc_type:ty) => {
-            let copy: Vec<$rc_type> = $rc_vec.iter().map(|thing| (**thing).clone()).collect();
-            assert_eq!(copy, $non_rc_vec);
+        ($rc_vec:expr, $non_rc_vec:expr) => {
+            assert_eq!(
+                $rc_vec,
+                $non_rc_vec
+                    .iter()
+                    .map(|thing| Rc::from(*thing))
+                    .collect::<Vec<Rc<_>>>()
+            );
         };
     }
 
@@ -257,7 +266,7 @@ mod tests {
             &word_bank,
         );
 
-        assert_rc_eq!(still_possible, vec!["wordb"], String);
+        assert_rc_eq!(still_possible, vec!["wordb"]);
         Ok(())
     }
 
@@ -276,7 +285,7 @@ mod tests {
             &word_bank,
         );
 
-        assert_rc_eq!(still_possible, vec!["worda", "wordb", "smore"], String);
+        assert_rc_eq!(still_possible, vec!["worda", "wordb", "smore"]);
         Ok(())
     }
 
@@ -295,7 +304,7 @@ mod tests {
             &word_bank,
         );
 
-        assert_rc_eq!(still_possible, vec!["other", "smore"], String);
+        assert_rc_eq!(still_possible, vec!["other", "smore"]);
         Ok(())
     }
 
@@ -427,10 +436,7 @@ mod tests {
         assert_eq!(counter.num_words_with_letter('a'), 1);
     }
 
-    fn rc_string_vec(vec_str: Vec<&'static str>) -> Vec<Rc<String>> {
-        vec_str
-            .iter()
-            .map(|word| Rc::new(word.to_string()))
-            .collect()
+    fn rc_string_vec(vec_str: Vec<&'static str>) -> Vec<Rc<str>> {
+        vec_str.iter().map(|word| Rc::from(*word)).collect()
     }
 }

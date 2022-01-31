@@ -14,10 +14,7 @@ fn calculate_best_guess_chooses_best_word() {
     let bank = create_word_bank(vec!["abcz", "wxyz", "defy", "ghix"]);
     let guesser = MaxUniqueLetterFrequencyGuesser::new(&bank);
 
-    assert_eq!(
-        guesser.select_next_guess(),
-        Some(Rc::new("wxyz".to_string()))
-    );
+    assert_eq!(guesser.select_next_guess(), Some(Rc::from("wxyz")));
 }
 
 #[test]
@@ -37,10 +34,7 @@ fn update_guess_result_modifies_next_guess() {
         },
     );
 
-    assert_eq!(
-        guesser.select_next_guess(),
-        Some(Rc::new("defy".to_string()))
-    );
+    assert_eq!(guesser.select_next_guess(), Some(Rc::from("defy")));
 }
 
 #[test]
@@ -56,7 +50,7 @@ fn play_game_with_known_word() {
 
     if let GameResult::Success(guesses) = play_game("abcz", 10, &bank) {
         assert!(guesses.len() < 10);
-        assert_eq!(guesses.iter().last(), Some(&String::from("abcz")));
+        assert_eq!(guesses.iter().last(), Some(&Box::from("abcz")));
     } else {
         assert!(false);
     }
@@ -68,7 +62,7 @@ fn play_game_takes_too_many_guesses() {
 
     if let GameResult::Failure(guesses) = play_game("abcz", 1, &bank) {
         assert_eq!(guesses.len(), 1);
-        assert!(!guesses.contains(&String::from("abcz")));
+        assert!(!guesses.contains(&Box::from("abcz")));
     } else {
         assert!(false);
     }
