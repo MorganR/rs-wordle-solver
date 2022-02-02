@@ -1,6 +1,8 @@
 use crate::results::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::io::BufRead;
 use std::io::Result;
 use std::rc::Rc;
@@ -154,6 +156,19 @@ impl WordBank {
     }
 }
 
+/// Gets the list of possible words in the word bank that meet the given restrictions.
+pub fn get_possible_words(restrictions: &WordRestrictions, bank: &WordBank) -> Vec<Rc<str>> {
+    bank.all_words
+        .iter()
+        .filter_map(|word| {
+            if restrictions.is_satisfied_by(word) {
+                return Some(Rc::clone(word));
+            }
+            None
+        })
+        .collect()
+}
+
 /// Counts the number of words that have letters in certain locations.
 #[derive(Clone)]
 pub struct WordCounter {
@@ -217,17 +232,94 @@ impl WordCounter {
     }
 }
 
-/// Gets the list of possible words in the word bank that meet the given restrictions.
-pub fn get_possible_words(restrictions: &WordRestrictions, bank: &WordBank) -> Vec<Rc<str>> {
-    bank.all_words
-        .iter()
-        .filter_map(|word| {
-            if restrictions.is_satisfied_by(word) {
-                return Some(Rc::clone(word));
+#[derive(Debug)]
+pub struct RefPtrEq<'a, T: ?Sized> {
+    as_ref: &'a T,
+}
+
+impl<'a, T: ?Sized> Clone for RefPtrEq<'a, T> {
+    fn clone(&self) -> RefPtrEq<'a, T> {
+        RefPtrEq {
+            as_ref: self.as_ref,
+        }
+    }
+}
+
+impl<'a, T: Eq + ?Sized> Eq for RefPtrEq<'a, T> {}
+
+impl<'a, T: ?Sized> PartialEq for RefPtrEq<'a, T> {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.as_ref, other.as_ref)
+    }
+}
+
+impl<'a, T: ?Sized> PartialEq<&T> for RefPtrEq<'a, T> {
+    fn eq(&self, other: &&T) -> bool {
+        std::ptr::eq(self.as_ref, *other)
+    }
+}
+
+impl<'a, T: ?Sized> Hash for RefPtrEq<'a, T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let ptr: *const T = self.as_ref;
+        ptr.hash(state);
+    }
+}
+
+impl<'a, 'b, T> From<&'b T> for RefPtrEq<'a, T>
+where
+    T: ?Sized,
+    'b: 'a,
+{
+    fn from(other: &'b T) -> Self {
+        RefPtrEq { as_ref: other }
+    }
+}
+
+pub struct WordTracker<'a> {
+    words_by_ll: HashMap<LocatedLetter, HashSet<RefPtrEq<'a, str>>>,
+    words_by_letter: HashMap<char, HashSet<RefPtrEq<'a, str>>>,
+}
+
+impl<'a> WordTracker<'a> {
+    pub fn new(words: &Vec<Rc<str>>) -> WordTracker {
+        let mut words_by_ll: HashMap<LocatedLetter, HashSet<RefPtrEq<str>>> = HashMap::new();
+        let mut words_by_letter: HashMap<char, HashSet<RefPtrEq<str>>> = HashMap::new();
+        for word in words {
+            for (index, letter) in word.char_indices() {
+                words_by_ll
+                    .entry(LocatedLetter::new(letter, index as u8))
+                    .or_insert(HashSet::new())
+                    .insert(RefPtrEq::from(word.as_ref()));
+                if index == 0
+                    || word
+                        .chars()
+                        .take(index)
+                        .all(|other_letter| other_letter != letter)
+                {
+                    words_by_letter
+                        .entry(letter)
+                        .or_insert(HashSet::new())
+                        .insert(RefPtrEq::from(word.as_ref()));
+                }
             }
-            None
-        })
-        .collect()
+        }
+        WordTracker {
+            words_by_ll: words_by_ll,
+            words_by_letter: words_by_letter,
+        }
+    }
+
+    pub fn words_with_located_letter(
+        &self,
+        ll: &LocatedLetter,
+    ) -> Option<&HashSet<RefPtrEq<'a, str>>> {
+        self.words_by_ll.get(ll)
+    }
+
+    pub fn words_with_letter(&self, letter: char) -> Option<&HashSet<RefPtrEq<'a, str>>> {
+        self.words_by_letter.get(&letter)
+    }
 }
 
 #[cfg(test)]
@@ -438,5 +530,263 @@ mod tests {
 
     fn rc_string_vec(vec_str: Vec<&'static str>) -> Vec<Rc<str>> {
         vec_str.iter().map(|word| Rc::from(*word)).collect()
+    }
+
+    #[test]
+    fn ref_ptr_eq_in_hash_map() {
+        let mut map: HashMap<RefPtrEq<str>, u32> = HashMap::new();
+
+        let word1 = "abc";
+        let word2 = "abc".to_string();
+
+        map.insert(word1.into(), 2);
+        map.insert(word2.as_str().into(), 3);
+
+        assert_eq!(*map.get(&word1.into()).unwrap(), 2);
+        assert_eq!(*map.get(&word2.as_str().into()).unwrap(), 3);
+    }
+
+    #[test]
+    fn ref_ptr_clone() {
+        let word1 = "abc".to_string();
+
+        let ref1 = RefPtrEq::from(word1.as_str());
+        let ref2 = ref1.clone();
+
+        assert_eq!(ref1, ref2);
+    }
+
+    fn word_tracker_by_located_letter() {
+        let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
+        let tracker = WordTracker::new(&all_words);
+
+        assert_eq!(
+            *tracker
+                .words_with_located_letter(&LocatedLetter::new('a', 1))
+                .unwrap(),
+            HashSet::from_iter(
+                all_words[1..2]
+                    .iter()
+                    .map(|rc_word| rc_word.as_ref().into())
+            )
+        );
+        assert_eq!(
+            *tracker
+                .words_with_located_letter(&LocatedLetter::new('h', 0))
+                .unwrap(),
+            HashSet::from_iter(
+                all_words[0..2]
+                    .iter()
+                    .map(|rc_word| rc_word.as_ref().into())
+            )
+        );
+        assert_eq!(
+            *tracker
+                .words_with_located_letter(&LocatedLetter::new('w', 0))
+                .unwrap(),
+            HashSet::from_iter(
+                all_words[3..4]
+                    .iter()
+                    .map(|rc_word| rc_word.as_ref().into())
+            )
+        );
+        assert_eq!(
+            tracker.words_with_located_letter(&LocatedLetter::new('w', 1)),
+            None
+        );
+        assert_eq!(
+            tracker.words_with_located_letter(&LocatedLetter::new('z', 1)),
+            None
+        );
+    }
+
+    fn word_tracker_by_letter() {
+        let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
+        let tracker = WordTracker::new(&all_words);
+
+        assert_eq!(
+            *tracker.words_with_letter('a').unwrap(),
+            HashSet::from_iter(
+                all_words[1..3]
+                    .iter()
+                    .map(|rc_word| rc_word.as_ref().into())
+            )
+        );
+        assert_eq!(
+            *tracker.words_with_letter('h').unwrap(),
+            HashSet::from_iter(
+                all_words[0..2]
+                    .iter()
+                    .map(|rc_word| rc_word.as_ref().into())
+            )
+        );
+        assert_eq!(
+            *tracker.words_with_letter('w').unwrap(),
+            HashSet::from_iter(
+                all_words[3..4]
+                    .iter()
+                    .map(|rc_word| rc_word.as_ref().into())
+            )
+        );
+        assert_eq!(tracker.words_with_letter('z'), None);
+    }
+}
+
+#[cfg(all(feature = "unstable", test))]
+mod benches {
+
+    extern crate test;
+
+    use super::*;
+    use std::collections::HashSet;
+    use std::fs::File;
+    use std::io::{BufRead, BufReader, Result};
+    use std::rc::Rc;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_hash_set_construction_no_dupes_ref_ptr_eq(b: &mut Bencher) -> Result<()> {
+        let mut words_reader = BufReader::new(File::open("../data/wordle-words.txt")?);
+        let words: Vec<String> = words_reader.lines().collect::<Result<Vec<String>>>()?;
+        let words_ref: Vec<Rc<str>> = words.iter().map(|word| Rc::from(word.as_str())).collect();
+
+        b.iter(|| {
+            let set: HashSet<RefPtrEq<'_, str>> =
+                words_ref.iter().map(|word| word.as_ref().into()).collect();
+            return set.len();
+        });
+
+        Ok(())
+    }
+
+    #[bench]
+    fn bench_hash_set_construction_with_dupes_ref_ptr_eq(b: &mut Bencher) -> Result<()> {
+        let mut words_reader =
+            BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
+        let words: Vec<String> = words_reader.lines().collect::<Result<Vec<String>>>()?;
+        let words_ref: Vec<Rc<str>> = words
+            .iter()
+            .chain(words.iter().chain(words.iter()))
+            .map(|word| Rc::from(word.as_str()))
+            .collect();
+
+        b.iter(|| {
+            let set: HashSet<RefPtrEq<'_, str>> =
+                words_ref.iter().map(|word| word.as_ref().into()).collect();
+            return set.len();
+        });
+
+        Ok(())
+    }
+
+    #[bench]
+    fn bench_hash_set_intersection_ref_ptr_eq(b: &mut Bencher) -> Result<()> {
+        let mut words_reader =
+            BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
+        let words: Vec<String> = words_reader.lines().collect::<Result<Vec<String>>>()?;
+        let words_ref_a: Vec<Rc<str>> = words
+            .iter()
+            .take(600)
+            .map(|word| Rc::from(word.as_str()))
+            .collect();
+        let words_ref_b: Vec<Rc<str>> = words
+            .iter()
+            .skip(200)
+            .take(600)
+            .map(|word| Rc::from(word.as_str()))
+            .collect();
+        let words_ref_c: Vec<Rc<str>> = words
+            .iter()
+            .skip(400)
+            .take(600)
+            .map(|word| Rc::from(word.as_str()))
+            .collect();
+
+        b.iter(|| {
+            let set_a: HashSet<RefPtrEq<'_, str>> = words_ref_a
+                .iter()
+                .map(|word| word.as_ref().into())
+                .collect();
+            let set_b: HashSet<RefPtrEq<'_, str>> = words_ref_b
+                .iter()
+                .map(|word| word.as_ref().into())
+                .collect();
+            let set_c: HashSet<RefPtrEq<'_, str>> = words_ref_c
+                .iter()
+                .map(|word| word.as_ref().into())
+                .collect();
+            let mut joined: HashSet<RefPtrEq<'_, str>> =
+                set_a.intersection(&set_b).map(RefPtrEq::clone).collect();
+            return joined.intersection(&set_c).count();
+        });
+
+        Ok(())
+    }
+
+    #[bench]
+    fn bench_hash_set_construction_no_dupes_rc_eq(b: &mut Bencher) -> Result<()> {
+        let mut words_reader = BufReader::new(File::open("../data/wordle-words.txt")?);
+        let words: Vec<String> = words_reader.lines().collect::<Result<Vec<String>>>()?;
+        let words_ref: Vec<Rc<str>> = words.iter().map(|word| Rc::from(word.as_str())).collect();
+
+        b.iter(|| {
+            let set: HashSet<Rc<str>> = words_ref.iter().map(|word| Rc::clone(word)).collect();
+            return set.len();
+        });
+
+        Ok(())
+    }
+
+    #[bench]
+    fn bench_hash_set_construction_with_dupes_rc_eq(b: &mut Bencher) -> Result<()> {
+        let mut words_reader =
+            BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
+        let words: Vec<String> = words_reader.lines().collect::<Result<Vec<String>>>()?;
+        let words_ref: Vec<Rc<str>> = words
+            .iter()
+            .chain(words.iter().chain(words.iter()))
+            .map(|word| Rc::from(word.as_str()))
+            .collect();
+
+        b.iter(|| {
+            let set: HashSet<Rc<str>> = words_ref.iter().map(|word| Rc::clone(word)).collect();
+            return set.len();
+        });
+
+        Ok(())
+    }
+
+    #[bench]
+    fn bench_hash_set_intersection_rc_eq(b: &mut Bencher) -> Result<()> {
+        let mut words_reader =
+            BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
+        let words: Vec<String> = words_reader.lines().collect::<Result<Vec<String>>>()?;
+        let words_ref_a: Vec<Rc<str>> = words
+            .iter()
+            .take(600)
+            .map(|word| Rc::from(word.as_str()))
+            .collect();
+        let words_ref_b: Vec<Rc<str>> = words
+            .iter()
+            .skip(200)
+            .take(600)
+            .map(|word| Rc::from(word.as_str()))
+            .collect();
+        let words_ref_c: Vec<Rc<str>> = words
+            .iter()
+            .skip(400)
+            .take(600)
+            .map(|word| Rc::from(word.as_str()))
+            .collect();
+
+        b.iter(|| {
+            let set_a: HashSet<Rc<str>> = words_ref_a.iter().map(Rc::clone).collect();
+            let set_b: HashSet<Rc<str>> = words_ref_b.iter().map(Rc::clone).collect();
+            let set_c: HashSet<Rc<str>> = words_ref_c.iter().map(Rc::clone).collect();
+            let mut joined: HashSet<Rc<str>> = set_a.intersection(&set_b).map(Rc::clone).collect();
+            return joined.intersection(&set_c).count();
+        });
+
+        Ok(())
     }
 }
