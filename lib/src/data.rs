@@ -320,6 +320,35 @@ impl<'a> WordTracker<'a> {
     pub fn words_with_letter(&self, letter: char) -> Option<&HashSet<RefPtrEq<'a, str>>> {
         self.words_by_letter.get(&letter)
     }
+
+    pub fn remove(&mut self, word: &'a str) {
+        for (index, letter) in word.char_indices() {
+            self.words_by_ll
+                .entry(LocatedLetter::new(letter, index as u8))
+                .and_modify(|set| {
+                    set.remove(&word.into());
+                });
+            if index == 0
+                || word
+                    .chars()
+                    .take(index)
+                    .all(|other_letter| other_letter != letter)
+            {
+                self.words_by_letter.entry(letter).and_modify(|set| {
+                    set.remove(&word.into());
+                });
+            }
+        }
+    }
+}
+
+impl<'a> Clone for WordTracker<'a> {
+    fn clone(&self) -> WordTracker<'a> {
+        WordTracker {
+            words_by_ll: self.words_by_ll.clone(),
+            words_by_letter: self.words_by_letter.clone(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -629,6 +658,48 @@ mod tests {
             )
         );
         assert_eq!(tracker.words_with_letter('z'), None);
+    }
+
+    fn word_tracker_remove() {
+        let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
+        let mut tracker = WordTracker::new(&all_words);
+
+        tracker.remove(&all_words[1]);
+
+        assert_eq!(
+            *tracker.words_with_letter('a').unwrap(),
+            all_words[2..3]
+                .iter()
+                .map(|rc_word| rc_word.as_ref().into())
+                .collect()
+        );
+        assert_eq!(
+            *tracker.words_with_letter('l').unwrap(),
+            all_words[0..1]
+                .iter()
+                .map(|rc_word| rc_word.as_ref().into())
+                .collect()
+        );
+        assert_eq!(
+            *tracker
+                .words_with_located_letter(&LocatedLetter::new('h', 0))
+                .unwrap(),
+            all_words[0..1]
+                .iter()
+                .map(|rc_word| rc_word.as_ref().into())
+                .collect()
+        );
+    }
+
+    fn word_tracker_clone() {
+        let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
+        let tracker = WordTracker::new(&all_words);
+
+        let mut tracker_clone = tracker.clone();
+        tracker_clone.remove(&all_words[2]);
+
+        assert_eq!(tracker.words_with_letter('a').unwrap().len(), 2);
+        assert_eq!(tracker_clone.words_with_letter('a').unwrap().len(), 1);
     }
 }
 
