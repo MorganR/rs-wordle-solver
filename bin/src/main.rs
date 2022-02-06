@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
+use std::time::Instant;
 use wordle_solver::*;
 
 /// Simple program to run a Wordle game in reverse, where the computer guesses the word.
@@ -29,6 +30,7 @@ enum Command {
 }
 
 fn main() -> io::Result<()> {
+    let start_time = Instant::now();
     let args = Args::parse();
     println!("File: {}", args.words_file);
 
@@ -41,6 +43,11 @@ fn main() -> io::Result<()> {
         Command::Single { word } => play_single_game(&word, &word_bank),
         Command::Interactive => play_interactive_game(&word_bank)?,
     }
+
+    println!(
+        "Command executed in {:.3}s.",
+        start_time.elapsed().as_secs_f64()
+    );
 
     Ok(())
 }
@@ -121,7 +128,9 @@ fn play_single_game(word: &str, word_bank: &WordBank) {
 }
 
 fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
-    let mut guesser = MaxUnguessedUniqueLetterFrequencyGuesser::new(&word_bank);
+    let all_words = word_bank.all_words();
+    let scorer = MaxUniqueUnguessedLetterFrequencyScorer::new(&all_words);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, all_words, scorer);
     println!("Choose a word from the word-list. Press enter once you've chosen.");
 
     {

@@ -4,7 +4,9 @@ use wordle_solver::*;
 #[test]
 fn calculate_best_guess_no_words() {
     let bank = create_word_bank(vec![]);
-    let guesser = MaxUniqueLetterFrequencyGuesser::new(&bank);
+    let all_words = bank.all_words();
+    let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, all_words, scorer);
 
     assert_eq!(guesser.select_next_guess(), None);
 }
@@ -12,7 +14,9 @@ fn calculate_best_guess_no_words() {
 #[test]
 fn calculate_best_guess_chooses_best_word() {
     let bank = create_word_bank(vec!["abcz", "wxyz", "defy", "ghix"]);
-    let guesser = MaxUniqueLetterFrequencyGuesser::new(&bank);
+    let all_words = bank.all_words();
+    let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, all_words, scorer);
 
     assert_eq!(guesser.select_next_guess(), Some(Rc::from("wxyz")));
 }
@@ -20,7 +24,9 @@ fn calculate_best_guess_chooses_best_word() {
 #[test]
 fn update_guess_result_modifies_next_guess() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let mut guesser = MaxUniqueLetterFrequencyGuesser::new(&bank);
+    let all_words = bank.all_words();
+    let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, all_words, scorer);
 
     guesser.update(
         "weyz",

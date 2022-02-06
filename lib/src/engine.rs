@@ -4,17 +4,12 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::rc::Rc;
 
-pub trait Guesser {
-    fn update<'a, 'b>(&mut self, guess: &'a str, result: &'b GuessResult);
-
-    fn select_next_guess(&self) -> Option<Rc<str>>;
-}
-
 /// Attempts to guess the given word within the maximum number of guesses, using words from the
 /// word bank.
 pub fn play_game(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank) -> GameResult {
-    let mut guesser =
-        MostEliminationsGuesser::new(&word_bank, WordCounter::new(&word_bank.all_words()));
+    let all_words = word_bank.all_words();
+    let scorer = MaxUniqueUnguessedLetterFrequencyScorer::new(&all_words);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, all_words, scorer);
     let mut guesses: Vec<Box<str>> = Vec::new();
     for _ in 1..=max_num_guesses {
         let maybe_guess = guesser.select_next_guess();
@@ -60,6 +55,15 @@ pub fn get_result_for_guess(objective: &str, guess: &str) -> GuessResult {
     }
 }
 
+/// Guesses words in order to solve a single Wordle.
+pub trait Guesser {
+    /// Updates this guesser with information about a word.
+    fn update<'a, 'b>(&mut self, guess: &'a str, result: &'b GuessResult);
+
+    /// Selects a new guess for the Wordle, if any words are possible.
+    fn select_next_guess(&mut self) -> Option<Rc<str>>;
+}
+
 /// Guesses at random from the possible words that meet the restrictions.
 pub struct RandomGuesser {
     possible_words: Vec<Rc<str>>,
@@ -90,7 +94,7 @@ impl Guesser for RandomGuesser {
             .collect();
     }
 
-    fn select_next_guess(&self) -> Option<Rc<str>> {
+    fn select_next_guess(&mut self) -> Option<Rc<str>> {
         if self.possible_words.is_empty() {
             return None;
         }
@@ -101,125 +105,196 @@ impl Guesser for RandomGuesser {
     }
 }
 
-/// Selects the word that maximizes the sum of the frequency of unique letters.
-pub struct MaxUniqueLetterFrequencyGuesser<'a> {
-    bank: &'a WordBank,
-    restrictions: WordRestrictions,
-    guessed: Vec<Box<str>>,
+/// Gives words a score, where the maximum score indicates the best guess.
+pub trait WordScorer {
+    /// Updates the scorer with the restrictions introduced by the most-recent guess, and with the
+    /// updated list of possible words.
+    fn update(
+        &mut self,
+        latest_guess: &str,
+        latest_restrictions: &WordRestrictions,
+        possible_words: &Vec<Rc<str>>,
+    );
+    /// Determines a score for the given word.
+    fn score_word(&mut self, word: &str) -> i64;
 }
 
-impl<'a> MaxUniqueLetterFrequencyGuesser<'a> {
-    pub fn new(bank: &'a WordBank) -> MaxUniqueLetterFrequencyGuesser<'a> {
-        MaxUniqueLetterFrequencyGuesser {
-            bank: bank,
-            restrictions: WordRestrictions::new(),
-            guessed: Vec::new(),
+/// Indicates which set of words to guess from.
+#[derive(Debug, PartialEq, Eq)]
+pub enum GuessFrom {
+    /// Choose the next guess from any unguessed word in the whole word list.
+    AllUnguessedWords,
+    /// Choose the next guess from any possible word based on the current restrictions.
+    PossibleWords,
+}
+
+/// Selects the next guess that maximizes the score according to the given scorer.
+pub struct MaxScoreGuesser<T>
+where
+    T: WordScorer,
+{
+    guess_mode: GuessFrom,
+    all_unguessed_words: Vec<Rc<str>>,
+    possible_words: Vec<Rc<str>>,
+    scorer: T,
+}
+
+impl<T> MaxScoreGuesser<T>
+where
+    T: WordScorer,
+{
+    pub fn new(guess_mode: GuessFrom, all_words: Vec<Rc<str>>, scorer: T) -> MaxScoreGuesser<T> {
+        MaxScoreGuesser {
+            guess_mode: guess_mode,
+            all_unguessed_words: all_words.clone(),
+            possible_words: all_words,
+            scorer: scorer,
         }
     }
 }
 
-impl<'a> Guesser for MaxUniqueLetterFrequencyGuesser<'a> {
-    fn update<'b, 'c>(&mut self, guess: &'b str, result: &'c GuessResult) {
-        self.guessed.push(Box::from(guess));
-        self.restrictions.update(result);
+impl<T> Guesser for MaxScoreGuesser<T>
+where
+    T: WordScorer,
+{
+    fn update<'a, 'b>(&mut self, guess: &'a str, result: &'b GuessResult) {
+        if let Some(position) = self
+            .all_unguessed_words
+            .iter()
+            .position(|word| word.as_ref() == guess)
+        {
+            self.all_unguessed_words.swap_remove(position);
+        }
+        // We only need to filter by the current guess's restrictions, since all previous
+        // restrictions have already been accounted for.
+        // Unless the current guess was the winning guess, this also filters out the current guess.
+        let restriction = WordRestrictions::from_result(result);
+        self.possible_words = self
+            .possible_words
+            .iter()
+            .filter_map(|word| {
+                if restriction.is_satisfied_by(word) {
+                    return Some(Rc::clone(word));
+                }
+                None
+            })
+            .collect();
+        self.scorer
+            .update(guess, &restriction, &self.possible_words);
     }
 
-    fn select_next_guess(&self) -> Option<Rc<str>> {
-        let possible_words = get_possible_words(&self.restrictions, self.bank);
-
-        let count_per_letter = compute_count_per_unique_letter(&possible_words);
-
-        retrieve_word_with_max_letter_frequency(&count_per_letter, &self.guessed, &possible_words)
+    fn select_next_guess(&mut self) -> Option<Rc<str>> {
+        if self.guess_mode == GuessFrom::AllUnguessedWords {
+            if self.possible_words.len() > 2 {
+                let mut best_word = self.all_unguessed_words.get(0);
+                let mut best_score =
+                    best_word.map_or(0, |word| self.scorer.score_word(word.as_ref()));
+                let mut scores_all_same = true;
+                for word in self.all_unguessed_words.iter() {
+                    let score = self.scorer.score_word(word.as_ref());
+                    if best_score != score {
+                        scores_all_same = false;
+                        if best_score < score {
+                            best_score = score;
+                            best_word = Some(word);
+                        }
+                    }
+                }
+                if !scores_all_same {
+                    return best_word.map(Rc::clone);
+                } else {
+                    return self.possible_words.get(0).map(Rc::clone);
+                }
+            }
+        }
+        return self
+            .possible_words
+            .iter()
+            .max_by_key(|word| self.scorer.score_word(word.as_ref()))
+            .map(Rc::clone);
     }
 }
 
-fn compute_count_per_unique_letter(words: &Vec<Rc<str>>) -> HashMap<char, u32> {
-    let mut count_per_letter: HashMap<char, u32> = HashMap::new();
+/// Scores words by the number of unique words that have the same letter (in any location), summed
+/// across each unique letter in the word.
+pub struct MaxUniqueLetterFrequencyScorer {
+    num_words_per_letter: HashMap<char, u32>,
+}
+
+fn compute_num_words_per_letter(words: &Vec<Rc<str>>) -> HashMap<char, u32> {
+    let mut num_words_per_letter: HashMap<char, u32> = HashMap::new();
     words.iter().for_each(|word| {
         let unique_chars: HashSet<char> = word.chars().collect();
         unique_chars.iter().for_each(|letter| {
-            let count = count_per_letter.entry(*letter).or_insert(0);
-            *count += 1;
+            *num_words_per_letter.entry(*letter).or_insert(0) += 1;
         });
     });
-    count_per_letter
+    num_words_per_letter
 }
 
-fn retrieve_word_with_max_letter_frequency<'a, 'b, 'c, 'd>(
-    count_per_letter: &'a HashMap<char, u32>,
-    words_to_avoid: &'b Vec<Box<str>>,
-    words: &Vec<Rc<str>>,
-) -> Option<Rc<str>> {
-    words
-        .iter()
-        .filter_map(|word| {
-            if words_to_avoid
-                .iter()
-                .any(|other_word| word.as_ref() == other_word.as_ref())
-            {
-                return None;
-            }
-            Some(Rc::clone(word))
-        })
-        .max_by_key(|word| {
-            let unique_chars: HashSet<char> = word.chars().collect();
-            unique_chars.iter().fold(0, |sum, letter| {
-                sum + *count_per_letter.get(letter).unwrap_or(&0)
-            })
-        })
-}
-
-/// Selects the word that maximizes the sum of the frequency of unique letters that have not yet
-/// been guessed.
-///
-/// This can select words from the whole word bank, not just from the remaining possible words.
-pub struct MaxUnguessedUniqueLetterFrequencyGuesser<'a> {
-    bank: &'a WordBank,
-    restrictions: WordRestrictions,
-    guessed: Vec<Box<str>>,
-}
-
-impl<'a> MaxUnguessedUniqueLetterFrequencyGuesser<'a> {
-    pub fn new(bank: &'a WordBank) -> MaxUnguessedUniqueLetterFrequencyGuesser<'a> {
-        MaxUnguessedUniqueLetterFrequencyGuesser {
-            bank: bank,
-            restrictions: WordRestrictions::new(),
-            guessed: Vec::new(),
+impl MaxUniqueLetterFrequencyScorer {
+    pub fn new(possible_words: &Vec<Rc<str>>) -> MaxUniqueLetterFrequencyScorer {
+        MaxUniqueLetterFrequencyScorer {
+            num_words_per_letter: compute_num_words_per_letter(possible_words),
         }
     }
 }
 
-impl<'a> Guesser for MaxUnguessedUniqueLetterFrequencyGuesser<'a> {
-    fn update<'b, 'c>(&mut self, guess: &'b str, result: &'c GuessResult) {
-        self.guessed.push(Box::from(guess));
-        self.restrictions.update(result);
+impl WordScorer for MaxUniqueLetterFrequencyScorer {
+    fn update(
+        &mut self,
+        _latest_guess: &str,
+        _latest_restrictions: &WordRestrictions,
+        possible_words: &Vec<Rc<str>>,
+    ) {
+        self.num_words_per_letter = compute_num_words_per_letter(possible_words);
     }
 
-    fn select_next_guess(&self) -> Option<Rc<str>> {
-        let possible_words = get_possible_words(&self.restrictions, self.bank);
+    fn score_word(&mut self, word: &str) -> i64 {
+        let unique_chars: HashSet<char> = word.chars().collect();
+        unique_chars.iter().fold(0 as i64, |sum, letter| {
+            sum + *self.num_words_per_letter.get(letter).unwrap_or(&0) as i64
+        })
+    }
+}
 
-        let mut count_per_letter = compute_count_per_unique_letter(&possible_words);
-        for word in &self.guessed {
-            for letter in word.chars() {
-                count_per_letter
-                    .entry(letter)
-                    .and_modify(|count| *count = 0);
+/// Scores words by the number of unique words that have the same letter (in any location), summed
+/// across each unique and not-yet guessed letter in the word.
+pub struct MaxUniqueUnguessedLetterFrequencyScorer {
+    guessed_letters: HashSet<char>,
+    num_words_per_letter: HashMap<char, u32>,
+}
+
+impl MaxUniqueUnguessedLetterFrequencyScorer {
+    pub fn new(possible_words: &Vec<Rc<str>>) -> MaxUniqueUnguessedLetterFrequencyScorer {
+        MaxUniqueUnguessedLetterFrequencyScorer {
+            guessed_letters: HashSet::new(),
+            num_words_per_letter: compute_num_words_per_letter(possible_words),
+        }
+    }
+}
+
+impl WordScorer for MaxUniqueUnguessedLetterFrequencyScorer {
+    fn update(
+        &mut self,
+        latest_guess: &str,
+        _latest_restrictions: &WordRestrictions,
+        possible_words: &Vec<Rc<str>>,
+    ) {
+        self.guessed_letters.extend(latest_guess.chars());
+        self.num_words_per_letter = compute_num_words_per_letter(possible_words);
+        for (letter, count) in self.num_words_per_letter.iter_mut() {
+            if self.guessed_letters.contains(letter) {
+                *count = 0;
             }
         }
-        // Check if there is at least one new letter in the possible words list.
-        let may_still_be_unknown_letters = count_per_letter.values().any(|count| *count > 0);
+    }
 
-        // If there are still many possible words, choose the next best guess from anywhere,
-        // including words that can't be the correct answer. This maximizes the information
-        // per guess.
-        if possible_words.len() > 2 && may_still_be_unknown_letters {
-            return retrieve_word_with_max_letter_frequency(
-                &count_per_letter,
-                &self.guessed,
-                &self.bank.all_words(),
-            );
-        }
-        retrieve_word_with_max_letter_frequency(&count_per_letter, &self.guessed, &possible_words)
+    fn score_word(&mut self, word: &str) -> i64 {
+        let unique_chars: HashSet<char> = word.chars().collect();
+        return unique_chars.iter().fold(0 as i64, |sum, letter| {
+            sum + *self.num_words_per_letter.get(letter).unwrap_or(&0) as i64
+        });
     }
 }
 
@@ -330,7 +405,7 @@ impl Guesser for ScoreLocatedLettersGuesser {
             .collect();
     }
 
-    fn select_next_guess(&self) -> Option<Rc<str>> {
+    fn select_next_guess(&mut self) -> Option<Rc<str>> {
         if self.possible_words.len() > 2 {
             return self
                 .all_unguessed_words
@@ -429,7 +504,7 @@ impl Guesser for MostEliminationsGuesser {
             .collect();
     }
 
-    fn select_next_guess(&self) -> Option<Rc<str>> {
+    fn select_next_guess(&mut self) -> Option<Rc<str>> {
         if self.possible_words.len() > 2 {
             return self
                 .all_unguessed_words
@@ -478,7 +553,8 @@ mod test {
         let bank = WordBank::from_vec(to_string_vec(vec![
             "alpha", "allot", "begot", "below", "endow", "ingot",
         ]));
-        let scorer = ScoreLocatedLettersGuesser::new(&bank, WordCounter::new(&bank.all_words()));
+        let mut scorer =
+            ScoreLocatedLettersGuesser::new(&bank, WordCounter::new(&bank.all_words()));
 
         assert_eq!(scorer.select_next_guess().unwrap().as_ref(), "begot");
     }

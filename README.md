@@ -44,10 +44,12 @@ One sample benchmark:
 
 **Average number of guesses:** 4.54 +/- 1.30
 
-### MaxUniqueLetterFrequencySelector
+### MaxUniqueLetterFrequencyScorer
 
 This is a fairly naive selector. It selects the word that maximizes the sum of the frequency of
-unique letters in the remaining possible words.
+unique letters in the possible words.
+
+**GuessFrom::PossibleWords**
 
 |Num guesses|Num games|
 |-----------|---------|
@@ -65,25 +67,63 @@ unique letters in the remaining possible words.
 
 **Average number of guesses:** 4.16 +/- 1.22
 
-### MaxUnguessedUniqueLetterFrequencySelector
+**GuessFrom::AllUnguessedWords**
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|93|
+|3|1056|
+|4|1896|
+|5|969|
+|6|338|
+|7|151|
+|8|66|
+|9|23|
+|10|4|
+|11|1|
+|12|3|
+|13|1|
+
+**Average number of guesses:** 4.28 +/- 1.22
+
+### MaxUniqueUnguessedLetterFrequencyScorer
 
 This selects the word that maximizes the sum of the frequency of unique letters that have not yet
-been guessed in the remaining possible words. It can select a guess from words that could not
-possibly be the answer in order to maximize the information gained per guess. This results in fewer
-lucky guesses early on, but with a dramatically improved long tail. 
+been guessed.
+
+**GuessFrom::PossibleWords**
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|137|
+|3|1264|
+|4|1828|
+|5|831|
+|6|322|
+|7|129|
+|8|57|
+|9|26|
+|10|6|
+|11|1|
+
+**Average number of guesses:** 4.16 +/- 1.22
+
+**GuessFrom::AllUnguessedWords**
 
 |Num guesses|Num games|
 |-----------|---------|
 |1|1|
 |2|32|
-|3|1030|
-|4|2183|
-|5|1078|
-|6|233|
-|7|42|
-|8|3|
+|3|1018|
+|4|2228|
+|5|1052|
+|6|230|
+|7|36|
+|8|5|
 
-**Average number of guesses:** 4.13 +/- 0.88
+**Average number of guesses:** 4.12 +/- 0.87
 
 ### ScoreLocatedLettersGuesser
 
@@ -164,26 +204,48 @@ test bench_guess_random_wordle_words   ... bench:     289,432 ns/iter (+/- 33,25
 test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 9.15s
 ```
 
-### MaxUniqueLetterFrequencySelector
+### MaxUniqueLetterFrequencyScorer - 
+
+**GuessFrom::PossibleWords**
 
 ```
 running 2 tests
-test bench_guess_random_improved_words ... bench:   1,839,250 ns/iter (+/- 93,806)
-test bench_guess_random_wordle_words   ... bench:   5,134,434 ns/iter (+/- 278,388)
+test bench_guess_random_improved_words ... bench:   1,874,060 ns/iter (+/- 102,103)
+test bench_guess_random_wordle_words   ... bench:   5,359,493 ns/iter (+/- 256,125)
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 8.49s
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 8.79s
 ```
 
-### MaxUnguessedUniqueLetterFrequencySelector
-
-Engine benchmark result:
+**GuessFrom::AllUnguessedWords**
 
 ```
 running 2 tests
-test bench_guess_random_improved_words ... bench:   3,944,031 ns/iter (+/- 863,425)
-test bench_guess_random_wordle_words   ... bench:  11,516,727 ns/iter (+/- 3,847,099)
+test bench_guess_random_improved_words ... bench:   3,727,482 ns/iter (+/- 1,167,432)
+test bench_guess_random_wordle_words   ... bench:  12,523,837 ns/iter (+/- 6,333,476)
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 7.09s
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 7.25s
+```
+
+### MaxUniqueUnguessedLetterFrequencyScorer
+
+**GuessFrom::PossibleWords**
+
+```
+running 2 tests
+test bench_guess_random_improved_words ... bench:   1,838,435 ns/iter (+/- 79,831)
+test bench_guess_random_wordle_words   ... bench:   5,257,480 ns/iter (+/- 217,477)
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 8.59s
+```
+
+**GuessFrom::AllUnguessedWords**
+
+```
+running 2 tests
+test bench_guess_random_improved_words ... bench:   3,598,302 ns/iter (+/- 719,643)
+test bench_guess_random_wordle_words   ... bench:  10,532,152 ns/iter (+/- 2,592,960)
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 6.48s
 ```
 
 ### ScoreLocatedLettersGuesser
