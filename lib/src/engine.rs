@@ -1,5 +1,6 @@
 use crate::data::*;
 use crate::results::*;
+use crate::trie::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -20,19 +21,19 @@ pub fn play_game(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank
         guesses.push(Box::from(guess.as_ref()));
         let result = get_result_for_guess(word_to_guess, guess.as_ref());
 
-        if result.letters.iter().all(|lr| match lr {
-            LetterResult::Correct(_) => true,
+        if result.results.iter().all(|lr| match lr {
+            LetterResult::Correct => true,
             _ => false,
         }) {
             return GameResult::Success(guesses);
         }
-        guesser.update(guess.as_ref(), &result);
+        guesser.update(&result);
     }
     return GameResult::Failure(guesses);
 }
 
 /// Determines the result of the given `guess` when applied to the given `objective`.
-pub fn get_result_for_guess(objective: &str, guess: &str) -> GuessResult {
+pub fn get_result_for_guess<'a>(objective: &str, guess: &'a str) -> GuessResult<'a> {
     if objective.len() != guess.len() {
         panic!(
             "Objective ({}) must have the same length as the guess ({})",
@@ -40,16 +41,17 @@ pub fn get_result_for_guess(objective: &str, guess: &str) -> GuessResult {
         );
     }
     GuessResult {
-        letters: guess
+        guess: guess,
+        results: guess
             .char_indices()
             .map(|(index, letter)| {
                 if objective.chars().nth(index).unwrap() == letter {
-                    return LetterResult::Correct(letter);
+                    return LetterResult::Correct;
                 }
                 if objective.contains(letter) {
-                    return LetterResult::PresentNotHere(letter);
+                    return LetterResult::PresentNotHere;
                 }
-                LetterResult::NotPresent(letter)
+                LetterResult::NotPresent
             })
             .collect(),
     }
@@ -58,7 +60,7 @@ pub fn get_result_for_guess(objective: &str, guess: &str) -> GuessResult {
 /// Guesses words in order to solve a single Wordle.
 pub trait Guesser {
     /// Updates this guesser with information about a word.
-    fn update<'a, 'b>(&mut self, guess: &'a str, result: &'b GuessResult);
+    fn update<'a, 'b>(&mut self, result: &'b GuessResult);
 
     /// Selects a new guess for the Wordle, if any words are possible.
     fn select_next_guess(&mut self) -> Option<Rc<str>>;
@@ -80,7 +82,7 @@ impl RandomGuesser {
 }
 
 impl Guesser for RandomGuesser {
-    fn update<'a, 'b>(&mut self, _guess: &'a str, result: &'b GuessResult) {
+    fn update<'a, 'b>(&mut self, result: &'b GuessResult) {
         self.restrictions.update(result);
         self.possible_words = self
             .possible_words
@@ -116,7 +118,7 @@ pub trait WordScorer {
         possible_words: &Vec<Rc<str>>,
     );
     /// Determines a score for the given word.
-    fn score_word(&mut self, word: &str) -> i64;
+    fn score_word(&mut self, word: &Rc<str>) -> i64;
 }
 
 /// Indicates which set of words to guess from.
@@ -157,11 +159,11 @@ impl<T> Guesser for MaxScoreGuesser<T>
 where
     T: WordScorer,
 {
-    fn update<'a, 'b>(&mut self, guess: &'a str, result: &'b GuessResult) {
+    fn update<'b>(&mut self, result: &'b GuessResult) {
         if let Some(position) = self
             .all_unguessed_words
             .iter()
-            .position(|word| word.as_ref() == guess)
+            .position(|word| word.as_ref() == result.guess)
         {
             self.all_unguessed_words.swap_remove(position);
         }
@@ -169,29 +171,20 @@ where
         // restrictions have already been accounted for.
         // Unless the current guess was the winning guess, this also filters out the current guess.
         let restriction = WordRestrictions::from_result(result);
-        self.possible_words = self
-            .possible_words
-            .iter()
-            .filter_map(|word| {
-                if restriction.is_satisfied_by(word) {
-                    return Some(Rc::clone(word));
-                }
-                None
-            })
-            .collect();
+        self.possible_words
+            .retain(|word| restriction.is_satisfied_by(word.as_ref()));
         self.scorer
-            .update(guess, &restriction, &self.possible_words);
+            .update(result.guess, &restriction, &self.possible_words);
     }
 
     fn select_next_guess(&mut self) -> Option<Rc<str>> {
         if self.guess_mode == GuessFrom::AllUnguessedWords {
             if self.possible_words.len() > 2 {
                 let mut best_word = self.all_unguessed_words.get(0);
-                let mut best_score =
-                    best_word.map_or(0, |word| self.scorer.score_word(word.as_ref()));
+                let mut best_score = best_word.map_or(0, |word| self.scorer.score_word(word));
                 let mut scores_all_same = true;
                 for word in self.all_unguessed_words.iter() {
-                    let score = self.scorer.score_word(word.as_ref());
+                    let score = self.scorer.score_word(word);
                     if best_score != score {
                         scores_all_same = false;
                         if best_score < score {
@@ -210,7 +203,7 @@ where
         return self
             .possible_words
             .iter()
-            .max_by_key(|word| self.scorer.score_word(word.as_ref()))
+            .max_by_key(|word| self.scorer.score_word(word))
             .map(Rc::clone);
     }
 }
@@ -221,10 +214,14 @@ pub struct MaxUniqueLetterFrequencyScorer {
     num_words_per_letter: HashMap<char, u32>,
 }
 
-fn compute_num_words_per_letter(words: &Vec<Rc<str>>) -> HashMap<char, u32> {
+fn compute_num_words_per_letter<'a, I, T>(words: I) -> HashMap<char, u32>
+where
+    I: IntoIterator<Item = &'a T>,
+    T: AsRef<str> + 'a,
+{
     let mut num_words_per_letter: HashMap<char, u32> = HashMap::new();
-    words.iter().for_each(|word| {
-        let unique_chars: HashSet<char> = word.chars().collect();
+    words.into_iter().for_each(|word| {
+        let unique_chars: HashSet<char> = word.as_ref().chars().collect();
         unique_chars.iter().for_each(|letter| {
             *num_words_per_letter.entry(*letter).or_insert(0) += 1;
         });
@@ -250,7 +247,7 @@ impl WordScorer for MaxUniqueLetterFrequencyScorer {
         self.num_words_per_letter = compute_num_words_per_letter(possible_words);
     }
 
-    fn score_word(&mut self, word: &str) -> i64 {
+    fn score_word(&mut self, word: &Rc<str>) -> i64 {
         let unique_chars: HashSet<char> = word.chars().collect();
         unique_chars.iter().fold(0 as i64, |sum, letter| {
             sum + *self.num_words_per_letter.get(letter).unwrap_or(&0) as i64
@@ -266,7 +263,11 @@ pub struct MaxUniqueUnguessedLetterFrequencyScorer {
 }
 
 impl MaxUniqueUnguessedLetterFrequencyScorer {
-    pub fn new(possible_words: &Vec<Rc<str>>) -> MaxUniqueUnguessedLetterFrequencyScorer {
+    pub fn new<'a, I, T>(possible_words: I) -> MaxUniqueUnguessedLetterFrequencyScorer
+    where
+        I: IntoIterator<Item = &'a T>,
+        T: AsRef<str> + 'a,
+    {
         MaxUniqueUnguessedLetterFrequencyScorer {
             guessed_letters: HashSet::new(),
             num_words_per_letter: compute_num_words_per_letter(possible_words),
@@ -290,11 +291,150 @@ impl WordScorer for MaxUniqueUnguessedLetterFrequencyScorer {
         }
     }
 
-    fn score_word(&mut self, word: &str) -> i64 {
+    fn score_word(&mut self, word: &Rc<str>) -> i64 {
         let unique_chars: HashSet<char> = word.chars().collect();
         return unique_chars.iter().fold(0 as i64, |sum, letter| {
             sum + *self.num_words_per_letter.get(letter).unwrap_or(&0) as i64
         });
+    }
+}
+
+struct PossibleOutcome {
+    /// The probability that this result will happen.
+    pub probability: f64,
+    /// The words that will still be possible with this result.
+    pub still_possible_words: WordTracker,
+}
+
+impl PossibleOutcome {
+    fn impossible() -> PossibleOutcome {
+        PossibleOutcome {
+            probability: 0.0,
+            still_possible_words: WordTracker::new(Vec::new()),
+        }
+    }
+}
+
+struct PossibleOutcomes {
+    pub outcomes: Vec<PossibleOutcome>,
+}
+
+/// Scores words by the number of unique words that have the same letter (in any location), summed
+/// across each unique and not-yet guessed letter in the word.
+pub struct MaxExpectedEliminationsScorer<'a> {
+    possible_words: WordTracker,
+    memoized_possibilities: Trie<'a, PossibleOutcomes>,
+}
+
+impl<'a> MaxExpectedEliminationsScorer<'a> {
+    pub fn new(possible_words_tracker: WordTracker) -> MaxExpectedEliminationsScorer<'a> {
+        MaxExpectedEliminationsScorer {
+            possible_words: possible_words_tracker,
+            memoized_possibilities: Trie::new(),
+        }
+    }
+
+    fn compute_possible_outcome(
+        possible_words_after: &HashSet<RefPtrEq<str>>,
+        num_possible_words_before: usize,
+    ) -> PossibleOutcome {
+        if possible_words_after.is_empty() {
+            return PossibleOutcome::impossible();
+        }
+        let num_matching_words = possible_words_after.len();
+        let possible_words_tracker =
+            WordTracker::new(possible_words_after.iter().map(RefPtrEq::as_rc));
+
+        PossibleOutcome {
+            probability: num_matching_words as f64 / num_possible_words_before as f64,
+            still_possible_words: possible_words_tracker,
+        }
+    }
+}
+
+impl<'a> WordScorer for MaxExpectedEliminationsScorer<'a> {
+    fn update(
+        &mut self,
+        _latest_guess: &str,
+        _latest_restrictions: &WordRestrictions,
+        possible_words: &Vec<Rc<str>>,
+    ) {
+        self.possible_words = WordTracker::new(possible_words);
+        self.memoized_possibilities = Trie::new();
+    }
+
+    fn score_word(&mut self, word: &Rc<str>) -> i64 {
+        let starting_index;
+        let mut possible_outcomes;
+        let base_outcomes;
+        if let Some(subtree) = self.memoized_possibilities.get_ancestor(word) {
+            starting_index = subtree.key.len();
+            possible_outcomes = subtree.value;
+        } else {
+            starting_index = 0;
+            base_outcomes = PossibleOutcomes {
+                outcomes: vec![PossibleOutcome {
+                    probability: 1.0,
+                    still_possible_words: self.possible_words.clone(),
+                }],
+            };
+            possible_outcomes = &base_outcomes;
+        }
+        for (index, letter) in word.char_indices().skip(starting_index) {
+            let mut all_outcomes_here: Vec<PossibleOutcome> = Vec::new();
+            for outcome in possible_outcomes.outcomes.iter() {
+                // Determine possible words for each outcome.
+                let words_if_correct = outcome
+                    .still_possible_words
+                    .words_with_located_letter(&LocatedLetter::new(letter, index as u8));
+                let words_if_present = outcome.still_possible_words.words_with_letter(letter);
+                let words_if_present_not_here: HashSet<RefPtrEq<str>> = words_if_present
+                    .difference(words_if_correct)
+                    .map(RefPtrEq::clone)
+                    .collect();
+                let num_possible_words = outcome.still_possible_words.all_words().len();
+                let words_if_not_present: HashSet<RefPtrEq<str>> = self
+                    .possible_words
+                    .all_words()
+                    .difference(words_if_present)
+                    .map(RefPtrEq::clone)
+                    .collect();
+
+                all_outcomes_here.extend(
+                    [
+                        MaxExpectedEliminationsScorer::compute_possible_outcome(
+                            &words_if_correct,
+                            num_possible_words,
+                        ),
+                        MaxExpectedEliminationsScorer::compute_possible_outcome(
+                            &words_if_present_not_here,
+                            num_possible_words,
+                        ),
+                        MaxExpectedEliminationsScorer::compute_possible_outcome(
+                            &words_if_not_present,
+                            num_possible_words,
+                        ),
+                    ]
+                    .into_iter()
+                    .filter(|next_outcome| next_outcome.probability != 0.0),
+                );
+            }
+            let prefix = unsafe { word.get_unchecked(0..(index + letter.len_utf8())) };
+            self.memoized_possibilities.insert(
+                prefix,
+                PossibleOutcomes {
+                    outcomes: all_outcomes_here,
+                },
+            );
+            possible_outcomes = self
+                .memoized_possibilities
+                .get_ancestor(prefix)
+                .unwrap()
+                .value;
+        }
+        (possible_outcomes.outcomes.iter().fold(0.0, |acc, outcome| {
+            acc + outcome.probability * outcome.still_possible_words.all_words().len() as f64
+        }) * 1000.0) as i64
     }
 }
 
@@ -379,12 +519,12 @@ impl ScoreLocatedLettersGuesser {
 }
 
 impl Guesser for ScoreLocatedLettersGuesser {
-    fn update<'a, 'b>(&mut self, guess: &'a str, result: &'b GuessResult) {
+    fn update<'a>(&mut self, result: &'a GuessResult) {
         self.restrictions.update(result);
         if let Some(position) = self
             .all_unguessed_words
             .iter()
-            .position(|word| word.as_ref() == guess)
+            .position(|word| word.as_ref() == result.guess)
         {
             self.all_unguessed_words.swap_remove(position);
         }
@@ -479,11 +619,11 @@ impl MostEliminationsGuesser {
 }
 
 impl Guesser for MostEliminationsGuesser {
-    fn update<'a, 'b>(&mut self, guess: &'a str, result: &'b GuessResult) {
+    fn update<'a>(&mut self, result: &'a GuessResult) {
         if let Some(position) = self
             .all_unguessed_words
             .iter()
-            .position(|word| word.as_ref() == guess)
+            .position(|word| word.as_ref() == result.guess)
         {
             self.all_unguessed_words.swap_remove(position);
         }
@@ -567,18 +707,16 @@ mod test {
         let mut scorer =
             ScoreLocatedLettersGuesser::new(&bank, WordCounter::new(&bank.all_words()));
 
-        scorer.update(
-            "begot",
-            &GuessResult {
-                letters: vec![
-                    LetterResult::NotPresent('b'),
-                    LetterResult::PresentNotHere('e'),
-                    LetterResult::NotPresent('g'),
-                    LetterResult::Correct('o'),
-                    LetterResult::NotPresent('t'),
-                ],
-            },
-        );
+        scorer.update(&GuessResult {
+            guess: "begot",
+            results: vec![
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        });
         // Remaining possible words: 'endow'
 
         assert_eq!(scorer.score_word("alpha"), 0 + 0 + 0 + 0 + 0);
@@ -596,18 +734,16 @@ mod test {
         let mut scorer =
             ScoreLocatedLettersGuesser::new(&bank, WordCounter::new(&bank.all_words()));
 
-        scorer.update(
-            "other",
-            &GuessResult {
-                letters: vec![
-                    LetterResult::PresentNotHere('o'),
-                    LetterResult::NotPresent('t'),
-                    LetterResult::NotPresent('h'),
-                    LetterResult::PresentNotHere('e'),
-                    LetterResult::NotPresent('r'),
-                ],
-            },
-        );
+        scorer.update(&GuessResult {
+            guess: "other",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+            ],
+        });
         // Remaining possible words: 'below', 'endow'
 
         assert_eq!(scorer.score_word("alpha"), 0 + 1 + 0 + 0 + 0);

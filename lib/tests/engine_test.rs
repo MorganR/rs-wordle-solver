@@ -28,17 +28,15 @@ fn update_guess_result_modifies_next_guess() {
     let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
     let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, all_words, scorer);
 
-    guesser.update(
-        "weyz",
-        &GuessResult {
-            letters: vec![
-                LetterResult::NotPresent('w'),
-                LetterResult::Correct('e'),
-                LetterResult::PresentNotHere('y'),
-                LetterResult::NotPresent('z'),
-            ],
-        },
-    );
+    guesser.update(&GuessResult {
+        guess: "weyz",
+        results: vec![
+            LetterResult::NotPresent,
+            LetterResult::Correct,
+            LetterResult::PresentNotHere,
+            LetterResult::NotPresent,
+        ],
+    });
 
     assert_eq!(guesser.select_next_guess(), Some(Rc::from("defy")));
 }
@@ -79,14 +77,17 @@ fn get_result_for_guess_success() {
     let result = get_result_for_guess("piano", "amino");
 
     assert_eq!(
-        result.letters,
-        vec![
-            LetterResult::PresentNotHere('a'),
-            LetterResult::NotPresent('m'),
-            LetterResult::PresentNotHere('i'),
-            LetterResult::Correct('n'),
-            LetterResult::Correct('o'),
-        ]
+        result,
+        GuessResult {
+            guess: "amino",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::Correct,
+            ]
+        }
     )
 }
 

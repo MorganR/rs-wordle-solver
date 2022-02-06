@@ -5,6 +5,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::io::BufRead;
 use std::io::Result;
+use std::iter::zip;
 use std::rc::Rc;
 
 /// A letter along with its location in the word.
@@ -50,18 +51,21 @@ impl WordRestrictions {
 
     /// Adds restrictions arising from the given guess result.
     pub fn update(&mut self, guess_result: &GuessResult) {
-        for (index, lr) in guess_result.letters.iter().enumerate() {
-            match lr {
-                LetterResult::Correct(letter) => {
+        for ((index, letter), result) in zip(
+            guess_result.guess.char_indices(),
+            guess_result.results.iter(),
+        ) {
+            match result {
+                LetterResult::Correct => {
                     self.must_contain_here
-                        .insert(LocatedLetter::new(*letter, index as u8));
+                        .insert(LocatedLetter::new(letter, index as u8));
                 }
-                LetterResult::PresentNotHere(letter) => {
+                LetterResult::PresentNotHere => {
                     self.must_contain_but_not_here
-                        .insert(LocatedLetter::new(*letter, index as u8));
+                        .insert(LocatedLetter::new(letter, index as u8));
                 }
-                LetterResult::NotPresent(letter) => {
-                    self.must_not_contain.insert(*letter);
+                LetterResult::NotPresent => {
+                    self.must_not_contain.insert(letter);
                 }
             }
         }
@@ -233,66 +237,89 @@ impl WordCounter {
 }
 
 #[derive(Debug)]
-pub struct RefPtrEq<'a, T: ?Sized> {
-    as_ref: &'a T,
+pub struct RefPtrEq<T: ?Sized> {
+    rc: Rc<T>,
 }
 
-impl<'a, T: ?Sized> Clone for RefPtrEq<'a, T> {
-    fn clone(&self) -> RefPtrEq<'a, T> {
+impl<T: ?Sized> RefPtrEq<T> {
+    pub fn as_rc(&self) -> &Rc<T> {
+        &self.rc
+    }
+}
+
+impl<T: ?Sized> Clone for RefPtrEq<T> {
+    fn clone(&self) -> RefPtrEq<T> {
         RefPtrEq {
-            as_ref: self.as_ref,
+            rc: Rc::clone(&self.rc),
         }
     }
 }
 
-impl<'a, T: Eq + ?Sized> Eq for RefPtrEq<'a, T> {}
+impl<T: Eq + ?Sized> Eq for RefPtrEq<T> {}
 
-impl<'a, T: ?Sized> PartialEq for RefPtrEq<'a, T> {
+impl<T: ?Sized> PartialEq for RefPtrEq<T> {
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self.as_ref, other.as_ref)
+        Rc::ptr_eq(&self.rc, &other.rc)
     }
 }
 
-impl<'a, T: ?Sized> PartialEq<&T> for RefPtrEq<'a, T> {
+impl<T: ?Sized> PartialEq<&T> for RefPtrEq<T> {
     fn eq(&self, other: &&T) -> bool {
-        std::ptr::eq(self.as_ref, *other)
+        std::ptr::eq(Rc::as_ptr(&self.rc), *other)
     }
 }
 
-impl<'a, T: ?Sized> Hash for RefPtrEq<'a, T> {
+impl<T: ?Sized> Hash for RefPtrEq<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let ptr: *const T = self.as_ref;
+        let ptr: *const T = Rc::as_ptr(&self.rc);
         ptr.hash(state);
     }
 }
 
-impl<'a, 'b, T> From<&'b T> for RefPtrEq<'a, T>
+impl<T> From<&Rc<T>> for RefPtrEq<T>
 where
     T: ?Sized,
-    'b: 'a,
 {
-    fn from(other: &'b T) -> Self {
-        RefPtrEq { as_ref: other }
+    fn from(other: &Rc<T>) -> Self {
+        RefPtrEq {
+            rc: Rc::clone(other),
+        }
     }
 }
 
-pub struct WordTracker<'a> {
-    words_by_ll: HashMap<LocatedLetter, HashSet<RefPtrEq<'a, str>>>,
-    words_by_letter: HashMap<char, HashSet<RefPtrEq<'a, str>>>,
+impl<T> AsRef<T> for RefPtrEq<T>
+where
+    T: ?Sized,
+{
+    fn as_ref(&self) -> &T {
+        self.rc.as_ref()
+    }
 }
 
-impl<'a> WordTracker<'a> {
-    pub fn new(words: &Vec<Rc<str>>) -> WordTracker {
+pub struct WordTracker {
+    empty_set: HashSet<RefPtrEq<str>>,
+    all_words: HashSet<RefPtrEq<str>>,
+    words_by_ll: HashMap<LocatedLetter, HashSet<RefPtrEq<str>>>,
+    words_by_letter: HashMap<char, HashSet<RefPtrEq<str>>>,
+}
+
+impl WordTracker {
+    pub fn new<'a, I>(words: I) -> WordTracker
+    where
+        I: IntoIterator<Item = &'a Rc<str>>,
+    {
         let mut words_by_ll: HashMap<LocatedLetter, HashSet<RefPtrEq<str>>> = HashMap::new();
         let mut words_by_letter: HashMap<char, HashSet<RefPtrEq<str>>> = HashMap::new();
-        for word in words {
-            for (index, letter) in word.char_indices() {
+        let all_words: HashSet<RefPtrEq<str>> = words.into_iter().map(RefPtrEq::from).collect();
+        for word in all_words.iter() {
+            for (index, letter) in word.as_ref().char_indices() {
                 words_by_ll
                     .entry(LocatedLetter::new(letter, index as u8))
                     .or_insert(HashSet::new())
-                    .insert(RefPtrEq::from(word.as_ref()));
+                    .insert(RefPtrEq::clone(word));
                 if index == 0
                     || word
+                        .as_ref()
                         .chars()
                         .take(index)
                         .all(|other_letter| other_letter != letter)
@@ -300,51 +327,62 @@ impl<'a> WordTracker<'a> {
                     words_by_letter
                         .entry(letter)
                         .or_insert(HashSet::new())
-                        .insert(RefPtrEq::from(word.as_ref()));
+                        .insert(RefPtrEq::clone(word));
                 }
             }
         }
         WordTracker {
+            empty_set: HashSet::new(),
+            all_words: all_words,
             words_by_ll: words_by_ll,
             words_by_letter: words_by_letter,
         }
     }
 
-    pub fn words_with_located_letter(
-        &self,
-        ll: &LocatedLetter,
-    ) -> Option<&HashSet<RefPtrEq<'a, str>>> {
-        self.words_by_ll.get(ll)
+    pub fn all_words(&self) -> &HashSet<RefPtrEq<str>> {
+        &self.all_words
     }
 
-    pub fn words_with_letter(&self, letter: char) -> Option<&HashSet<RefPtrEq<'a, str>>> {
-        self.words_by_letter.get(&letter)
+    pub fn words_with_located_letter(&self, ll: &LocatedLetter) -> &HashSet<RefPtrEq<str>> {
+        self.words_by_ll.get(ll).unwrap_or(&self.empty_set)
     }
 
-    pub fn remove(&mut self, word: &'a str) {
-        for (index, letter) in word.char_indices() {
-            self.words_by_ll
-                .entry(LocatedLetter::new(letter, index as u8))
-                .and_modify(|set| {
-                    set.remove(&word.into());
-                });
-            if index == 0
-                || word
-                    .chars()
-                    .take(index)
-                    .all(|other_letter| other_letter != letter)
-            {
-                self.words_by_letter.entry(letter).and_modify(|set| {
-                    set.remove(&word.into());
-                });
-            }
-        }
+    pub fn words_with_letter(&self, letter: char) -> &HashSet<RefPtrEq<str>> {
+        self.words_by_letter.get(&letter).unwrap_or(&self.empty_set)
     }
+
+    // pub fn remove(&mut self, word: &'a str) {
+    //     for (index, letter) in word.char_indices() {
+    //         self.words_by_ll
+    //             .entry(LocatedLetter::new(letter, index as u8))
+    //             .and_modify(|set| {
+    //                 set.remove(&word.into());
+    //             });
+    //         if index == 0
+    //             || word
+    //                 .chars()
+    //                 .take(index)
+    //                 .all(|other_letter| other_letter != letter)
+    //         {
+    //             self.words_by_letter.entry(letter).and_modify(|set| {
+    //                 set.remove(&word.into());
+    //             });
+    //         }
+    //     }
+    // }
+
+    // pub fn remove_all<I: IntoIterator<Item = &'a str>>(&mut self, words: I) {
+    //     for word in words {
+    //         self.remove(word);
+    //     }
+    // }
 }
 
-impl<'a> Clone for WordTracker<'a> {
-    fn clone(&self) -> WordTracker<'a> {
+impl Clone for WordTracker {
+    fn clone(&self) -> WordTracker {
         WordTracker {
+            empty_set: HashSet::new(),
+            all_words: self.all_words.clone(),
             words_by_ll: self.words_by_ll.clone(),
             words_by_letter: self.words_by_letter.clone(),
         }
@@ -565,142 +603,117 @@ mod tests {
     fn ref_ptr_eq_in_hash_map() {
         let mut map: HashMap<RefPtrEq<str>, u32> = HashMap::new();
 
-        let word1 = "abc";
-        let word2 = "abc".to_string();
+        let word1 = Rc::from("abc");
+        let word2 = Rc::from("abc");
 
-        map.insert(word1.into(), 2);
-        map.insert(word2.as_str().into(), 3);
+        let ref1 = RefPtrEq::from(&word1);
+        let ref2 = RefPtrEq::from(&word2);
+        assert!(ref1 != ref2);
 
-        assert_eq!(*map.get(&word1.into()).unwrap(), 2);
-        assert_eq!(*map.get(&word2.as_str().into()).unwrap(), 3);
+        map.insert(RefPtrEq::from(&word1), 2);
+        map.insert(RefPtrEq::from(&word2), 3);
+
+        assert_eq!(*map.get(&RefPtrEq::from(&word1)).unwrap(), 2);
+        assert_eq!(*map.get(&RefPtrEq::from(&word2)).unwrap(), 3);
     }
 
     #[test]
     fn ref_ptr_clone() {
-        let word1 = "abc".to_string();
+        let word1: Rc<str> = Rc::from("abc");
 
-        let ref1 = RefPtrEq::from(word1.as_str());
+        let ref1 = RefPtrEq::from(&word1);
         let ref2 = ref1.clone();
 
         assert_eq!(ref1, ref2);
     }
 
+    #[test]
     fn word_tracker_by_located_letter() {
         let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
         let tracker = WordTracker::new(&all_words);
 
         assert_eq!(
-            *tracker
-                .words_with_located_letter(&LocatedLetter::new('a', 1))
-                .unwrap(),
-            HashSet::from_iter(
-                all_words[1..2]
-                    .iter()
-                    .map(|rc_word| rc_word.as_ref().into())
-            )
+            *tracker.words_with_located_letter(&LocatedLetter::new('a', 1)),
+            HashSet::from_iter(all_words[1..2].iter().map(RefPtrEq::from))
         );
         assert_eq!(
-            *tracker
-                .words_with_located_letter(&LocatedLetter::new('h', 0))
-                .unwrap(),
-            HashSet::from_iter(
-                all_words[0..2]
-                    .iter()
-                    .map(|rc_word| rc_word.as_ref().into())
-            )
+            *tracker.words_with_located_letter(&LocatedLetter::new('h', 0)),
+            HashSet::from_iter(all_words[0..2].iter().map(RefPtrEq::from))
         );
         assert_eq!(
-            *tracker
-                .words_with_located_letter(&LocatedLetter::new('w', 0))
-                .unwrap(),
-            HashSet::from_iter(
-                all_words[3..4]
-                    .iter()
-                    .map(|rc_word| rc_word.as_ref().into())
-            )
+            *tracker.words_with_located_letter(&LocatedLetter::new('w', 0)),
+            HashSet::from_iter(all_words[2..3].iter().map(RefPtrEq::from))
         );
         assert_eq!(
             tracker.words_with_located_letter(&LocatedLetter::new('w', 1)),
-            None
+            &HashSet::new(),
         );
         assert_eq!(
             tracker.words_with_located_letter(&LocatedLetter::new('z', 1)),
-            None
+            &HashSet::new(),
         );
     }
 
+    #[test]
     fn word_tracker_by_letter() {
         let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
         let tracker = WordTracker::new(&all_words);
 
         assert_eq!(
-            *tracker.words_with_letter('a').unwrap(),
-            HashSet::from_iter(
-                all_words[1..3]
-                    .iter()
-                    .map(|rc_word| rc_word.as_ref().into())
-            )
+            *tracker.words_with_letter('a'),
+            HashSet::from_iter(all_words[1..3].iter().map(RefPtrEq::from))
         );
         assert_eq!(
-            *tracker.words_with_letter('h').unwrap(),
-            HashSet::from_iter(
-                all_words[0..2]
-                    .iter()
-                    .map(|rc_word| rc_word.as_ref().into())
-            )
+            *tracker.words_with_letter('h'),
+            HashSet::from_iter(all_words[0..2].iter().map(RefPtrEq::from))
         );
         assert_eq!(
-            *tracker.words_with_letter('w').unwrap(),
-            HashSet::from_iter(
-                all_words[3..4]
-                    .iter()
-                    .map(|rc_word| rc_word.as_ref().into())
-            )
+            *tracker.words_with_letter('w'),
+            HashSet::from_iter(all_words[2..3].iter().map(RefPtrEq::from))
         );
-        assert_eq!(tracker.words_with_letter('z'), None);
+        assert_eq!(tracker.words_with_letter('z'), &HashSet::new());
     }
 
-    fn word_tracker_remove() {
-        let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
-        let mut tracker = WordTracker::new(&all_words);
+    // fn word_tracker_remove() {
+    //     let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
+    //     let mut tracker = WordTracker::new(&all_words);
 
-        tracker.remove(&all_words[1]);
+    //     tracker.remove(&all_words[1]);
 
-        assert_eq!(
-            *tracker.words_with_letter('a').unwrap(),
-            all_words[2..3]
-                .iter()
-                .map(|rc_word| rc_word.as_ref().into())
-                .collect()
-        );
-        assert_eq!(
-            *tracker.words_with_letter('l').unwrap(),
-            all_words[0..1]
-                .iter()
-                .map(|rc_word| rc_word.as_ref().into())
-                .collect()
-        );
-        assert_eq!(
-            *tracker
-                .words_with_located_letter(&LocatedLetter::new('h', 0))
-                .unwrap(),
-            all_words[0..1]
-                .iter()
-                .map(|rc_word| rc_word.as_ref().into())
-                .collect()
-        );
-    }
+    //     assert_eq!(
+    //         *tracker.words_with_letter('a'),
+    //         all_words[2..3]
+    //             .iter()
+    //             .map(|rc_word| rc_word.as_ref().into())
+    //             .collect()
+    //     );
+    //     assert_eq!(
+    //         *tracker.words_with_letter('l'),
+    //         all_words[0..1]
+    //             .iter()
+    //             .map(|rc_word| rc_word.as_ref().into())
+    //             .collect()
+    //     );
+    //     assert_eq!(
+    //         *tracker
+    //             .words_with_located_letter(&LocatedLetter::new('h', 0)),
+    //         all_words[0..1]
+    //             .iter()
+    //             .map(|rc_word| rc_word.as_ref().into())
+    //             .collect()
+    //     );
+    // }
 
-    fn word_tracker_clone() {
-        let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
-        let tracker = WordTracker::new(&all_words);
+    // fn word_tracker_clone() {
+    //     let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
+    //     let tracker = WordTracker::new(&all_words);
 
-        let mut tracker_clone = tracker.clone();
-        tracker_clone.remove(&all_words[2]);
+    //     let mut tracker_clone = tracker.clone();
+    //     tracker_clone.remove(&all_words[2]);
 
-        assert_eq!(tracker.words_with_letter('a').unwrap().len(), 2);
-        assert_eq!(tracker_clone.words_with_letter('a').unwrap().len(), 1);
-    }
+    //     assert_eq!(tracker.words_with_letter('a').len(), 2);
+    //     assert_eq!(tracker_clone.words_with_letter('a').len(), 1);
+    // }
 }
 
 #[cfg(all(feature = "unstable", test))]
@@ -722,8 +735,7 @@ mod benches {
         let words_ref: Vec<Rc<str>> = words.iter().map(|word| Rc::from(word.as_str())).collect();
 
         b.iter(|| {
-            let set: HashSet<RefPtrEq<'_, str>> =
-                words_ref.iter().map(|word| word.as_ref().into()).collect();
+            let set: HashSet<RefPtrEq<str>> = words_ref.iter().map(RefPtrEq::from).collect();
             return set.len();
         });
 
@@ -742,8 +754,7 @@ mod benches {
             .collect();
 
         b.iter(|| {
-            let set: HashSet<RefPtrEq<'_, str>> =
-                words_ref.iter().map(|word| word.as_ref().into()).collect();
+            let set: HashSet<RefPtrEq<str>> = words_ref.iter().map(RefPtrEq::from).collect();
             return set.len();
         });
 
@@ -774,19 +785,10 @@ mod benches {
             .collect();
 
         b.iter(|| {
-            let set_a: HashSet<RefPtrEq<'_, str>> = words_ref_a
-                .iter()
-                .map(|word| word.as_ref().into())
-                .collect();
-            let set_b: HashSet<RefPtrEq<'_, str>> = words_ref_b
-                .iter()
-                .map(|word| word.as_ref().into())
-                .collect();
-            let set_c: HashSet<RefPtrEq<'_, str>> = words_ref_c
-                .iter()
-                .map(|word| word.as_ref().into())
-                .collect();
-            let mut joined: HashSet<RefPtrEq<'_, str>> =
+            let set_a: HashSet<RefPtrEq<str>> = words_ref_a.iter().map(RefPtrEq::from).collect();
+            let set_b: HashSet<RefPtrEq<str>> = words_ref_b.iter().map(RefPtrEq::from).collect();
+            let set_c: HashSet<RefPtrEq<str>> = words_ref_c.iter().map(RefPtrEq::from).collect();
+            let mut joined: HashSet<RefPtrEq<str>> =
                 set_a.intersection(&set_b).map(RefPtrEq::clone).collect();
             return joined.intersection(&set_c).count();
         });

@@ -1,13 +1,45 @@
 use radix_trie;
 use radix_trie::TrieCommon;
+use std::marker::PhantomData;
+use std::rc::Rc;
 
 pub struct Node<'a, V> {
     pub key: &'a str,
     pub value: &'a V,
 }
 
+struct StoredKeys<'a> {
+    list: Vec<Rc<str>>,
+    phantom: PhantomData<&'a str>,
+}
+
+impl<'a> StoredKeys<'a> {
+    pub fn new() -> StoredKeys<'a> {
+        StoredKeys {
+            list: vec![Rc::from("")],
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn insert(&mut self, key: &str) {
+        self.list.push(Rc::from(key));
+    }
+
+    pub fn get_last(&self) -> &'a str {
+        let key_ref = self.list.last().unwrap();
+        let key_ptr = key_ref.as_ptr();
+        unsafe {
+            std::str::from_utf8_unchecked(std::slice::from_raw_parts::<'a>(
+                key_ptr,
+                key_ref.as_ref().len(),
+            ))
+        }
+    }
+}
+
 /// Implements a Trie, hiding the implementation details from the rest of this library.
 pub struct Trie<'a, V> {
+    keys: StoredKeys<'a>,
     root: radix_trie::Trie<&'a str, V>,
 }
 
@@ -15,16 +47,16 @@ impl<'a, V> Trie<'a, V> {
     /// Creates an empty Trie.
     pub fn new() -> Trie<'a, V> {
         Trie {
+            keys: StoredKeys::new(),
             root: radix_trie::Trie::new(),
         }
     }
 
     /// Inserts the given value into the trie using the given key.
-    pub fn insert<'b>(&mut self, key: &'b str, value: V)
-    where
-        'b: 'a,
-    {
-        self.root.insert(key, value);
+    pub fn insert<'b>(&mut self, key: &'b str, value: V) {
+        self.keys.insert(key);
+        let stored_key: &'a str = self.keys.get_last().as_ref();
+        self.root.insert(stored_key, value);
     }
 
     /// Gets node from the trie with the longest matching prefix.

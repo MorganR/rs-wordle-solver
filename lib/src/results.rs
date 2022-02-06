@@ -1,16 +1,17 @@
 /// The result of a given letter at a specific location.
 #[derive(Debug, Eq, PartialEq)]
 pub enum LetterResult {
-    Correct(char),
-    PresentNotHere(char),
-    NotPresent(char),
+    Correct,
+    PresentNotHere,
+    NotPresent,
 }
 
 /// The result of a single word guess.
-#[derive(Debug)]
-pub struct GuessResult {
+#[derive(Debug, PartialEq)]
+pub struct GuessResult<'a> {
+    pub guess: &'a str,
     /// The result of each letter, provided in the same leter order as in the guess.
-    pub letters: Vec<LetterResult>,
+    pub results: Vec<LetterResult>,
 }
 
 /// Whether the game was won or lost by the guesser.
