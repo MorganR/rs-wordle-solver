@@ -15,8 +15,17 @@ pub fn play_game(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank
 
 /// Attempts to guess the given word within the maximum number of guesses, using words from the
 /// word bank and using the given word scorer.
-pub fn play_game_with_scorer<S: WordScorer>(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank, word_scorer: S) -> GameResult {
-    let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, word_bank.all_words(), word_scorer);
+pub fn play_game_with_scorer<S: WordScorer>(
+    word_to_guess: &str,
+    max_num_guesses: u32,
+    word_bank: &WordBank,
+    word_scorer: S,
+) -> GameResult {
+    let mut guesser = MaxScoreGuesser::new(
+        GuessFrom::AllUnguessedWords,
+        word_bank.all_words(),
+        word_scorer,
+    );
     let mut guesses: Vec<Box<str>> = Vec::new();
     for _ in 1..=max_num_guesses {
         let maybe_guess = guesser.select_next_guess();
@@ -347,15 +356,20 @@ impl<'a> MaxExpectedEliminationsScorer<'a> {
         }
     }
 
-    pub fn from_precomputed(possible_words_tracker: WordTracker, first_possibilities_trie: Trie<'a, PossibleOutcomes>) -> MaxExpectedEliminationsScorer<'a> {
+    pub fn from_precomputed(
+        possible_words_tracker: WordTracker,
+        first_possibilities_trie: Trie<'a, PossibleOutcomes>,
+    ) -> MaxExpectedEliminationsScorer<'a> {
         MaxExpectedEliminationsScorer {
             restrictions: WordRestrictions::new(),
             possible_words: possible_words_tracker,
             memoized_possibilities: first_possibilities_trie,
         }
     }
-    
-    pub fn precompute_possibilities<'b>(possible_words_tracker: WordTracker) -> Trie<'b, PossibleOutcomes> {
+
+    pub fn precompute_possibilities<'b>(
+        possible_words_tracker: WordTracker,
+    ) -> Trie<'b, PossibleOutcomes> {
         let all_words = possible_words_tracker.all_words().clone();
         let mut scorer = MaxExpectedEliminationsScorer::new(possible_words_tracker);
 
@@ -371,7 +385,14 @@ impl<'a> MaxExpectedEliminationsScorer<'a> {
             if self.restrictions.must_not_contain.contains(&letter) {
                 continue;
             }
-            if self.restrictions.must_contain_here.contains(&LocatedLetter::new(letter, index as u8)) {
+            if self
+                .restrictions
+                .must_contain_here
+                .contains(&LocatedLetter::new(letter, index as u8))
+            {
+                continue;
+            }
+            if !self.possible_words.has_letter(letter) {
                 continue;
             }
             can_skip = false;
@@ -394,7 +415,8 @@ impl<'a> MaxExpectedEliminationsScorer<'a> {
             WordTracker::new(possible_words_after.iter().map(RefPtrEq::as_rc));
 
         let outcome = PossibleOutcome {
-            probability: (num_matching_words as f64 / num_possible_words_before as f64) * probability_so_far,
+            probability: (num_matching_words as f64 / num_possible_words_before as f64)
+                * probability_so_far,
             still_possible_words: possible_words_tracker,
         };
         // if num_possible_words_before < num_matching_words {
@@ -454,7 +476,9 @@ impl<'a> WordScorer for MaxExpectedEliminationsScorer<'a> {
                     .map(RefPtrEq::clone)
                     .collect();
                 // println!("BAD BAD: Too many words if present not here {} / {}.", words_if_present_not_here.len(), num_possible_words);
-                let words_if_not_present: HashSet<RefPtrEq<str>> = outcome.still_possible_words.all_words()
+                let words_if_not_present: HashSet<RefPtrEq<str>> = outcome
+                    .still_possible_words
+                    .all_words()
                     .difference(words_if_present)
                     .map(RefPtrEq::clone)
                     .collect();
@@ -499,10 +523,11 @@ impl<'a> WordScorer for MaxExpectedEliminationsScorer<'a> {
         }
         let num_all_possible_words = self.possible_words.all_words().len();
         let score = (possible_outcomes.outcomes.iter().fold(0.0, |acc, outcome| {
-            acc + outcome.probability * (num_all_possible_words - outcome.still_possible_words.all_words().len()) as f64
+            acc + outcome.probability
+                * (num_all_possible_words - outcome.still_possible_words.all_words().len()) as f64
         }) * 1000.0) as i64;
         // println!("Calculated final score: {}", score);
-        score 
+        score
     }
 }
 
@@ -735,7 +760,6 @@ impl Guesser for MostEliminationsGuesser {
 #[cfg(test)]
 mod test {
     use super::*;
-    use float_cmp::approx_eq;
 
     fn to_string_vec(words: Vec<&str>) -> Vec<String> {
         words.iter().map(|word| word.to_string()).collect()
@@ -826,7 +850,7 @@ mod test {
 
     #[test]
     fn max_elminations_scorer_score_word() {
-        let possible_words: Vec<Rc<str>> = vec![Rc::from("cod"), Rc::from("wod"), Rc::from("mod")]; 
+        let possible_words: Vec<Rc<str>> = vec![Rc::from("cod"), Rc::from("wod"), Rc::from("mod")];
         let word_tracker = WordTracker::new(&possible_words);
         let mut scorer = MaxExpectedEliminationsScorer::new(word_tracker);
 

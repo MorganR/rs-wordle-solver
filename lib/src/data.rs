@@ -73,9 +73,12 @@ impl WordRestrictions {
 
     /// Adds the given restrictions to this restriction.
     pub fn union(&mut self, other: &WordRestrictions) {
-        self.must_contain_here.extend(other.must_contain_here.iter().map(Clone::clone));
-        self.must_contain_but_not_here.extend(other.must_contain_but_not_here.iter().map(Clone::clone));
-        self.must_not_contain.extend(other.must_not_contain.iter().map(Clone::clone));
+        self.must_contain_here
+            .extend(other.must_contain_here.iter().map(Clone::clone));
+        self.must_contain_but_not_here
+            .extend(other.must_contain_but_not_here.iter().map(Clone::clone));
+        self.must_not_contain
+            .extend(other.must_not_contain.iter().map(Clone::clone));
     }
 
     /// Returns `true` iff the given word satisfies these restrictions.
@@ -165,19 +168,6 @@ impl WordBank {
     pub fn max_word_len(&self) -> usize {
         self.max_word_length
     }
-}
-
-/// Gets the list of possible words in the word bank that meet the given restrictions.
-pub fn get_possible_words(restrictions: &WordRestrictions, bank: &WordBank) -> Vec<Rc<str>> {
-    bank.all_words
-        .iter()
-        .filter_map(|word| {
-            if restrictions.is_satisfied_by(word) {
-                return Some(Rc::clone(word));
-            }
-            None
-        })
-        .collect()
 }
 
 /// Counts the number of words that have letters in certain locations.
@@ -350,6 +340,10 @@ impl WordTracker {
         &self.all_words
     }
 
+    pub fn has_letter(&self, letter: char) -> bool {
+        self.words_by_letter.contains_key(&letter)
+    }
+
     pub fn words_with_located_letter(&self, ll: &LocatedLetter) -> &HashSet<RefPtrEq<str>> {
         self.words_by_ll.get(ll).unwrap_or(&self.empty_set)
     }
@@ -400,98 +394,6 @@ impl Clone for WordTracker {
 mod tests {
 
     use super::*;
-    use std::io::Cursor;
-
-    macro_rules! assert_rc_eq {
-        ($rc_vec:expr, $non_rc_vec:expr) => {
-            assert_eq!(
-                $rc_vec,
-                $non_rc_vec
-                    .iter()
-                    .map(|thing| Rc::from(*thing))
-                    .collect::<Vec<Rc<_>>>()
-            );
-        };
-    }
-
-    #[test]
-    fn word_bank_get_possible_words_must_contain_here() -> Result<()> {
-        let mut cursor = Cursor::new(String::from("worda\nwordb\nother\nsmore"));
-
-        let word_bank = WordBank::from_reader(&mut cursor)?;
-
-        let still_possible = get_possible_words(
-            &WordRestrictions {
-                must_contain_here: HashSet::from([
-                    LocatedLetter::new('o', 1),
-                    LocatedLetter::new('b', 4),
-                ]),
-                must_contain_but_not_here: HashSet::new(),
-                must_not_contain: HashSet::new(),
-            },
-            &word_bank,
-        );
-
-        assert_rc_eq!(still_possible, vec!["wordb"]);
-        Ok(())
-    }
-
-    #[test]
-    fn word_bank_get_possible_words_must_contain_not_here() -> Result<()> {
-        let mut cursor = Cursor::new(String::from("worda\nwordb\nother\nsmore"));
-
-        let word_bank = WordBank::from_reader(&mut cursor)?;
-
-        let still_possible = get_possible_words(
-            &WordRestrictions {
-                must_contain_here: HashSet::new(),
-                must_contain_but_not_here: HashSet::from([LocatedLetter::new('o', 0)]),
-                must_not_contain: HashSet::new(),
-            },
-            &word_bank,
-        );
-
-        assert_rc_eq!(still_possible, vec!["worda", "wordb", "smore"]);
-        Ok(())
-    }
-
-    #[test]
-    fn word_bank_get_possible_words_must_not_contain() -> Result<()> {
-        let mut cursor = Cursor::new(String::from("worda\nwordb\nother\nsmore"));
-
-        let word_bank = WordBank::from_reader(&mut cursor)?;
-
-        let still_possible = get_possible_words(
-            &WordRestrictions {
-                must_contain_here: HashSet::new(),
-                must_contain_but_not_here: HashSet::new(),
-                must_not_contain: HashSet::from(['w']),
-            },
-            &word_bank,
-        );
-
-        assert_rc_eq!(still_possible, vec!["other", "smore"]);
-        Ok(())
-    }
-
-    #[test]
-    fn word_bank_get_possible_words_no_match() -> Result<()> {
-        let mut cursor = Cursor::new(String::from("worda\nwordb\nother\nsmore"));
-
-        let word_bank = WordBank::from_reader(&mut cursor)?;
-
-        let still_possible = get_possible_words(
-            &WordRestrictions {
-                must_contain_here: HashSet::from([LocatedLetter::new('o', 1)]),
-                must_contain_but_not_here: HashSet::from([LocatedLetter::new('b', 4)]),
-                must_not_contain: HashSet::from(['w']),
-            },
-            &word_bank,
-        );
-
-        assert!(still_possible.is_empty());
-        Ok(())
-    }
 
     #[test]
     fn word_counter_num_words_with_located_letter() {

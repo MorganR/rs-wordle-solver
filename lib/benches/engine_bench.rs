@@ -52,14 +52,18 @@ fn bench_max_eliminations_scorer_precomputed_random_improved_words(b: &mut Bench
 
     let bank = WordBank::from_reader(&mut all_words)?;
     let tracker = WordTracker::new(&bank.all_words());
-    let precomputed_possibilities = MaxExpectedEliminationsScorer::precompute_possibilities(tracker.clone());
+    let precomputed_possibilities =
+        MaxExpectedEliminationsScorer::precompute_possibilities(tracker.clone());
 
     let test_words: Vec<String> = test_words.lines().collect::<Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
 
     b.iter(|| {
         let test_word = test_word_iter.next().unwrap();
-        let scorer = MaxExpectedEliminationsScorer::from_precomputed(tracker.clone(), precomputed_possibilities.clone());
+        let scorer = MaxExpectedEliminationsScorer::from_precomputed(
+            tracker.clone(),
+            precomputed_possibilities.clone(),
+        );
         return play_game_with_scorer(test_word, 128, &bank, scorer);
     });
 

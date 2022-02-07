@@ -55,9 +55,13 @@ fn main() -> io::Result<()> {
 fn run_benchmark(word_bank: &WordBank) {
     let mut num_guesses_per_game: Vec<u32> = Vec::new();
     let tracker = WordTracker::new(&word_bank.all_words());
-    let precomputed_possibilities = MaxExpectedEliminationsScorer::precompute_possibilities(tracker.clone());
+    let precomputed_possibilities =
+        MaxExpectedEliminationsScorer::precompute_possibilities(tracker.clone());
     for word in word_bank.all_words().iter() {
-        let scorer = MaxExpectedEliminationsScorer::from_precomputed(tracker.clone(), precomputed_possibilities.clone());
+        let scorer = MaxExpectedEliminationsScorer::from_precomputed(
+            tracker.clone(),
+            precomputed_possibilities.clone(),
+        );
         if let GameResult::Success(guesses) = play_game_with_scorer(word, 128, word_bank, scorer) {
             num_guesses_per_game.push(guesses.len() as u32);
         } else {
@@ -181,7 +185,6 @@ fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
 }
 
 fn get_result_for_guess<'a>(guess: &'a str) -> io::Result<GuessResult<'a>> {
-
     let mut buffer = String::new();
     io::stdin().read_line(&mut buffer)?;
     let input = buffer.trim();
