@@ -374,7 +374,7 @@ impl<'a> MaxExpectedEliminationsScorer<'a> {
         let mut scorer = MaxExpectedEliminationsScorer::new(possible_words_tracker);
 
         for word in all_words {
-            scorer.score_word(word.as_rc());
+            scorer.score_word(&word);
         }
         return scorer.memoized_possibilities;
     }
@@ -402,7 +402,7 @@ impl<'a> MaxExpectedEliminationsScorer<'a> {
     }
 
     fn compute_possible_outcome(
-        possible_words_after: &HashSet<RefPtrEq<str>>,
+        possible_words_after: &HashSet<Rc<str>>,
         num_possible_words_before: usize,
         probability_so_far: f64,
     ) -> PossibleOutcome {
@@ -412,7 +412,7 @@ impl<'a> MaxExpectedEliminationsScorer<'a> {
         }
         let num_matching_words = possible_words_after.len();
         let possible_words_tracker =
-            WordTracker::new(possible_words_after.iter().map(RefPtrEq::as_rc));
+            WordTracker::new(possible_words_after.iter());
 
         let outcome = PossibleOutcome {
             probability: (num_matching_words as f64 / num_possible_words_before as f64)
@@ -471,16 +471,16 @@ impl<'a> WordScorer for MaxExpectedEliminationsScorer<'a> {
                     .words_with_located_letter(&LocatedLetter::new(letter, index as u8));
                 // println!("BAD BAD: Too many words if correct {} / {}.", words_if_correct.len(), num_possible_words);
                 let words_if_present = outcome.still_possible_words.words_with_letter(letter);
-                let words_if_present_not_here: HashSet<RefPtrEq<str>> = words_if_present
+                let words_if_present_not_here: HashSet<Rc<str>> = words_if_present
                     .difference(words_if_correct)
-                    .map(RefPtrEq::clone)
+                    .map(Rc::clone)
                     .collect();
                 // println!("BAD BAD: Too many words if present not here {} / {}.", words_if_present_not_here.len(), num_possible_words);
-                let words_if_not_present: HashSet<RefPtrEq<str>> = outcome
+                let words_if_not_present: HashSet<Rc<str>> = outcome
                     .still_possible_words
                     .all_words()
                     .difference(words_if_present)
-                    .map(RefPtrEq::clone)
+                    .map(Rc::clone)
                     .collect();
                 // println!("BAD BAD: Too many words if not present {} / {}.", words_if_not_present.len(), num_possible_words);
 

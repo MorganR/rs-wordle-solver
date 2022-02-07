@@ -294,10 +294,10 @@ where
 }
 
 pub struct WordTracker {
-    empty_set: HashSet<RefPtrEq<str>>,
-    all_words: HashSet<RefPtrEq<str>>,
-    words_by_ll: HashMap<LocatedLetter, HashSet<RefPtrEq<str>>>,
-    words_by_letter: HashMap<char, HashSet<RefPtrEq<str>>>,
+    empty_set: HashSet<Rc<str>>,
+    all_words: HashSet<Rc<str>>,
+    words_by_ll: HashMap<LocatedLetter, HashSet<Rc<str>>>,
+    words_by_letter: HashMap<char, HashSet<Rc<str>>>,
 }
 
 impl WordTracker {
@@ -305,15 +305,15 @@ impl WordTracker {
     where
         I: IntoIterator<Item = &'a Rc<str>>,
     {
-        let mut words_by_ll: HashMap<LocatedLetter, HashSet<RefPtrEq<str>>> = HashMap::new();
-        let mut words_by_letter: HashMap<char, HashSet<RefPtrEq<str>>> = HashMap::new();
-        let all_words: HashSet<RefPtrEq<str>> = words.into_iter().map(RefPtrEq::from).collect();
+        let mut words_by_ll: HashMap<LocatedLetter, HashSet<Rc<str>>> = HashMap::new();
+        let mut words_by_letter: HashMap<char, HashSet<Rc<str>>> = HashMap::new();
+        let all_words: HashSet<Rc<str>> = words.into_iter().map(Rc::clone).collect();
         for word in all_words.iter() {
             for (index, letter) in word.as_ref().char_indices() {
                 words_by_ll
                     .entry(LocatedLetter::new(letter, index as u8))
                     .or_insert(HashSet::new())
-                    .insert(RefPtrEq::clone(word));
+                    .insert(Rc::clone(word));
                 if index == 0
                     || word
                         .as_ref()
@@ -324,7 +324,7 @@ impl WordTracker {
                     words_by_letter
                         .entry(letter)
                         .or_insert(HashSet::new())
-                        .insert(RefPtrEq::clone(word));
+                        .insert(Rc::clone(word));
                 }
             }
         }
@@ -336,7 +336,7 @@ impl WordTracker {
         }
     }
 
-    pub fn all_words(&self) -> &HashSet<RefPtrEq<str>> {
+    pub fn all_words(&self) -> &HashSet<Rc<str>> {
         &self.all_words
     }
 
@@ -344,11 +344,11 @@ impl WordTracker {
         self.words_by_letter.contains_key(&letter)
     }
 
-    pub fn words_with_located_letter(&self, ll: &LocatedLetter) -> &HashSet<RefPtrEq<str>> {
+    pub fn words_with_located_letter(&self, ll: &LocatedLetter) -> &HashSet<Rc<str>> {
         self.words_by_ll.get(ll).unwrap_or(&self.empty_set)
     }
 
-    pub fn words_with_letter(&self, letter: char) -> &HashSet<RefPtrEq<str>> {
+    pub fn words_with_letter(&self, letter: char) -> &HashSet<Rc<str>> {
         self.words_by_letter.get(&letter).unwrap_or(&self.empty_set)
     }
 
@@ -543,7 +543,7 @@ mod tests {
 
         assert_eq!(
             *tracker.all_words(),
-            HashSet::from_iter(all_words[0..3].iter().map(RefPtrEq::from))
+            HashSet::from_iter(all_words[0..3].iter().map(Rc::clone))
         );
     }
 
@@ -554,15 +554,15 @@ mod tests {
 
         assert_eq!(
             *tracker.words_with_located_letter(&LocatedLetter::new('a', 1)),
-            HashSet::from_iter(all_words[1..2].iter().map(RefPtrEq::from))
+            HashSet::from_iter(all_words[1..2].iter().map(Rc::clone))
         );
         assert_eq!(
             *tracker.words_with_located_letter(&LocatedLetter::new('h', 0)),
-            HashSet::from_iter(all_words[0..2].iter().map(RefPtrEq::from))
+            HashSet::from_iter(all_words[0..2].iter().map(Rc::clone))
         );
         assert_eq!(
             *tracker.words_with_located_letter(&LocatedLetter::new('w', 0)),
-            HashSet::from_iter(all_words[2..3].iter().map(RefPtrEq::from))
+            HashSet::from_iter(all_words[2..3].iter().map(Rc::clone))
         );
         assert_eq!(
             tracker.words_with_located_letter(&LocatedLetter::new('w', 1)),
@@ -581,15 +581,15 @@ mod tests {
 
         assert_eq!(
             *tracker.words_with_letter('a'),
-            HashSet::from_iter(all_words[1..3].iter().map(RefPtrEq::from))
+            HashSet::from_iter(all_words[1..3].iter().map(Rc::clone))
         );
         assert_eq!(
             *tracker.words_with_letter('h'),
-            HashSet::from_iter(all_words[0..2].iter().map(RefPtrEq::from))
+            HashSet::from_iter(all_words[0..2].iter().map(Rc::clone))
         );
         assert_eq!(
             *tracker.words_with_letter('w'),
-            HashSet::from_iter(all_words[2..3].iter().map(RefPtrEq::from))
+            HashSet::from_iter(all_words[2..3].iter().map(Rc::clone))
         );
         assert_eq!(tracker.words_with_letter('z'), &HashSet::new());
     }
