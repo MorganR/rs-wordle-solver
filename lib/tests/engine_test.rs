@@ -61,6 +61,31 @@ fn play_game_with_known_word() {
 }
 
 #[test]
+fn play_game_with_scorer_with_unknown_word() {
+    let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
+    let tracker = WordTracker::new(&bank.all_words());
+    let precomputed_possibilities = MaxExpectedEliminationsScorer::precompute_possibilities(tracker.clone());
+    let scorer = MaxExpectedEliminationsScorer::from_precomputed(tracker, precomputed_possibilities);
+
+    assert_eq!(play_game_with_scorer("nope", 10, &bank, scorer), GameResult::UnknownWord);
+}
+
+#[test]
+fn play_game_with_scorer_with_known_word() {
+    let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
+    let tracker = WordTracker::new(&bank.all_words());
+    let precomputed_possibilities = MaxExpectedEliminationsScorer::precompute_possibilities(tracker.clone());
+    let scorer = MaxExpectedEliminationsScorer::from_precomputed(tracker, precomputed_possibilities);
+
+    if let GameResult::Success(guesses) = play_game_with_scorer("abcz", 10, &bank, scorer) {
+        assert!(guesses.len() < 10);
+        assert_eq!(guesses.iter().last(), Some(&Box::from("abcz")));
+    } else {
+        assert!(false);
+    }
+}
+
+#[test]
 fn play_game_takes_too_many_guesses() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
 

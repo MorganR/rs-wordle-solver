@@ -3,11 +3,13 @@ use radix_trie::TrieCommon;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+#[derive(Debug, PartialEq)]
 pub struct Node<'a, V> {
     pub key: &'a str,
     pub value: &'a V,
 }
 
+#[derive(Clone)]
 struct StoredKeys<'a> {
     list: Vec<Rc<str>>,
     phantom: PhantomData<&'a str>,
@@ -38,6 +40,7 @@ impl<'a> StoredKeys<'a> {
 }
 
 /// Implements a Trie, hiding the implementation details from the rest of this library.
+#[derive(Clone)]
 pub struct Trie<'a, V> {
     keys: StoredKeys<'a>,
     root: radix_trie::Trie<&'a str, V>,
@@ -85,6 +88,13 @@ mod test {
     use super::*;
 
     #[test]
+    fn retrieve_empty() {
+        let trie: Trie<u32> = Trie::new();
+
+        assert_eq!(trie.get_ancestor("key"), None);
+    }
+
+    #[test]
     fn insert_and_retrieve() {
         let mut trie: Trie<u32> = Trie::new();
 
@@ -93,6 +103,7 @@ mod test {
         let node = trie.get_ancestor("ab").unwrap();
         assert_eq!(node.key, "ab");
         assert_eq!(*node.value, 2);
+        assert_eq!(trie.get_ancestor("other"), None);
     }
 
     #[test]

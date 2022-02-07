@@ -54,8 +54,11 @@ fn main() -> io::Result<()> {
 
 fn run_benchmark(word_bank: &WordBank) {
     let mut num_guesses_per_game: Vec<u32> = Vec::new();
+    let tracker = WordTracker::new(&word_bank.all_words());
+    let precomputed_possibilities = MaxExpectedEliminationsScorer::precompute_possibilities(tracker.clone());
     for word in word_bank.all_words().iter() {
-        if let GameResult::Success(guesses) = play_game(word, 128, word_bank) {
+        let scorer = MaxExpectedEliminationsScorer::from_precomputed(tracker.clone(), precomputed_possibilities.clone());
+        if let GameResult::Success(guesses) = play_game_with_scorer(word, 128, word_bank, scorer) {
             num_guesses_per_game.push(guesses.len() as u32);
         } else {
             assert!(false);
@@ -103,7 +106,9 @@ fn run_benchmark(word_bank: &WordBank) {
 }
 
 fn play_single_game(word: &str, word_bank: &WordBank) {
-    let result = play_game(word, 128, word_bank);
+    let tracker = WordTracker::new(&word_bank.all_words());
+    let possibilities = MaxExpectedEliminationsScorer::new(tracker);
+    let result = play_game_with_scorer(word, 128, word_bank, possibilities);
     match result {
         GameResult::Success(guesses) => {
             println!("Solved it! It took me {} guesses.", guesses.len());
@@ -159,18 +164,15 @@ fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
         let result = result.unwrap();
 
         if result
-            .letters
+            .results
             .iter()
-            .all(|letter_result| match letter_result {
-                LetterResult::Correct(_) => true,
-                _ => false,
-            })
+            .all(|letter_result| *letter_result == LetterResult::Correct)
         {
             println!("I did it! It took me {} guesses.", round);
             return Ok(());
         }
 
-        guesser.update(guess.as_ref(), &result);
+        guesser.update(&result);
     }
 
     println!("I couldn't guess it :(");
@@ -178,7 +180,8 @@ fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
     Ok(())
 }
 
-fn get_result_for_guess(guess: &str) -> io::Result<GuessResult> {
+fn get_result_for_guess<'a>(guess: &'a str) -> io::Result<GuessResult<'a>> {
+
     let mut buffer = String::new();
     io::stdin().read_line(&mut buffer)?;
     let input = buffer.trim();
@@ -194,14 +197,13 @@ fn get_result_for_guess(guess: &str) -> io::Result<GuessResult> {
     }
 
     Ok(GuessResult {
-        letters: input
+        guess: guess,
+        results: input
             .char_indices()
             .map(|(index, letter)| match letter {
-                '.' => Ok(LetterResult::NotPresent(guess.chars().nth(index).unwrap())),
-                'y' => Ok(LetterResult::PresentNotHere(
-                    guess.chars().nth(index).unwrap(),
-                )),
-                'g' => Ok(LetterResult::Correct(guess.chars().nth(index).unwrap())),
+                '.' => Ok(LetterResult::NotPresent),
+                'y' => Ok(LetterResult::PresentNotHere),
+                'g' => Ok(LetterResult::Correct),
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Must enter only the letters '.', 'y', or 'g'. Try again.",

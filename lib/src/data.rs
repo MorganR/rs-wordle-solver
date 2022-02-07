@@ -71,6 +71,13 @@ impl WordRestrictions {
         }
     }
 
+    /// Adds the given restrictions to this restriction.
+    pub fn union(&mut self, other: &WordRestrictions) {
+        self.must_contain_here.extend(other.must_contain_here.iter().map(Clone::clone));
+        self.must_contain_but_not_here.extend(other.must_contain_but_not_here.iter().map(Clone::clone));
+        self.must_not_contain.extend(other.must_not_contain.iter().map(Clone::clone));
+    }
+
     /// Returns `true` iff the given word satisfies these restrictions.
     pub fn is_satisfied_by(&self, word: &str) -> bool {
         self.must_contain_here
@@ -625,6 +632,17 @@ mod tests {
         let ref2 = ref1.clone();
 
         assert_eq!(ref1, ref2);
+    }
+
+    #[test]
+    fn word_tracker_all_words() {
+        let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
+        let tracker = WordTracker::new(&all_words);
+
+        assert_eq!(
+            *tracker.all_words(),
+            HashSet::from_iter(all_words[0..3].iter().map(RefPtrEq::from))
+        );
     }
 
     #[test]
