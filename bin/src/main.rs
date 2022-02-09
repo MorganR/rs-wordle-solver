@@ -203,7 +203,7 @@ fn get_result_for_guess<'a>(guess: &'a str) -> io::Result<GuessResult<'a>> {
         guess: guess,
         results: input
             .char_indices()
-            .map(|(index, letter)| match letter {
+            .map(|(_, letter)| match letter {
                 '.' => Ok(LetterResult::NotPresent),
                 'y' => Ok(LetterResult::PresentNotHere),
                 'g' => Ok(LetterResult::Correct),
