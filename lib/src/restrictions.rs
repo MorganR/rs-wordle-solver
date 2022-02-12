@@ -1,6 +1,9 @@
 use crate::results::GuessResult;
 use crate::results::LetterResult;
 use crate::results::WordleError;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::iter::zip;
 use std::result::Result;
 
@@ -15,7 +18,7 @@ enum LocatedLetterState {
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct PresentLetter {
     /// The letter must appear exactly this many times in the word.
-    maybe_max_count: Option<u8>,
+    maybe_required_count: Option<u8>,
     /// The number of locations we know the letter must appear.
     num_here: u8,
     /// The number of locations we know the letter must not appear.
@@ -28,7 +31,7 @@ impl PresentLetter {
     /// Constructs a `PresentLetter` for use with words of the given length.
     pub fn new(word_length: u8) -> PresentLetter {
         PresentLetter {
-            maybe_max_count: None,
+            maybe_required_count: None,
             num_here: 0,
             num_not_here: 0,
             located_state: vec![LocatedLetterState::Unknown; word_length as usize],
@@ -37,6 +40,10 @@ impl PresentLetter {
 
     pub fn state(&self, index: usize) -> LocatedLetterState {
         self.located_state[index]
+    }
+
+    pub fn maybe_required_count(&self) -> Option<u8> {
+        self.maybe_required_count
     }
 
     /// Sets that this letter must be at the given index.
@@ -49,7 +56,7 @@ impl PresentLetter {
         }
         self.located_state[index] = LocatedLetterState::Here;
         self.num_here += 1;
-        if let Some(count) = self.maybe_max_count {
+        if let Some(count) = self.maybe_required_count {
             if self.num_here == count {
                 // If the count has been met, then this letter doesn't appear anywhere else.
                 self.set_unknowns_to(LocatedLetterState::NotHere);
@@ -59,7 +66,7 @@ impl PresentLetter {
             }
         } else {
             // Set the max count if all states are known to prevent errors.
-            self.set_max_count_if_full();
+            self.set_required_count_if_full();
         }
         Ok(())
     }
@@ -75,7 +82,7 @@ impl PresentLetter {
         self.located_state[index] = LocatedLetterState::NotHere;
         self.num_not_here += 1;
         let max_possible_here = self.located_state.len() as u8 - self.num_not_here;
-        if let Some(count) = self.maybe_max_count {
+        if let Some(count) = self.maybe_required_count {
             if max_possible_here == count {
                 // If the letter must be in all possible remaining spaces, set them to here.
                 self.set_unknowns_to(LocatedLetterState::Here);
@@ -83,18 +90,18 @@ impl PresentLetter {
         } else {
             if max_possible_here == 1 && self.num_here == 0 {
                 self.set_unknowns_to(LocatedLetterState::Here);
-                self.maybe_max_count = Some(1);
+                self.maybe_required_count = Some(1);
             } else {
                 // Set the max count if all states are known to prevent errors.
-                self.set_max_count_if_full();
+                self.set_required_count_if_full();
             }
         }
         Ok(())
     }
 
     /// Sets the maximum number of times this letter can appear in the word.
-    pub fn set_max_count(&mut self, count: u8) -> Result<(), WordleError> {
-        if let Some(existing_count) = self.maybe_max_count {
+    pub fn set_required_count(&mut self, count: u8) -> Result<(), WordleError> {
+        if let Some(existing_count) = self.maybe_required_count {
             if existing_count != count {
                 return Err(WordleError::InvalidResults);
             } else {
@@ -108,7 +115,7 @@ impl PresentLetter {
         if max_possible_num_here < count {
             return Err(WordleError::InvalidResults);
         }
-        self.maybe_max_count = Some(count);
+        self.maybe_required_count = Some(count);
         if self.num_here == count {
             self.set_unknowns_to(LocatedLetterState::NotHere);
         } else if max_possible_num_here == count {
@@ -133,25 +140,18 @@ impl PresentLetter {
         }
     }
 
-    fn set_max_count_if_full(&mut self) {
+    fn set_required_count_if_full(&mut self) {
         if self.num_here + self.num_not_here == self.located_state.len() as u8 {
-            self.maybe_max_count = Some(self.num_here);
+            self.maybe_required_count = Some(self.num_here);
         }
     }
-}
-
-/// Indicates known information about a letter.
-#[derive(Debug, PartialEq, Eq, Clone)]
-enum KnownLetter {
-    Unknown,
-    NotPresent,
-    Present(PresentLetter),
 }
 
 /// Defines letter restrictions that a word must adhere to.
 pub struct WordRestrictions {
     word_length: u8,
-    letters: [KnownLetter; 26],
+    present_letters: HashMap<char, PresentLetter>,
+    not_present_letters: HashSet<char>,
 }
 
 impl WordRestrictions {
@@ -159,7 +159,8 @@ impl WordRestrictions {
     fn new(word_length: u8) -> WordRestrictions {
         WordRestrictions {
             word_length: word_length,
-            letters: [KnownLetter::Unknown; 26],
+            present_letters: HashMap::new(),
+            not_present_letters: HashSet::new(),
         }
     }
 
@@ -178,10 +179,10 @@ impl WordRestrictions {
         ) {
             match result {
                 LetterResult::Correct => {
-                    self.set_letter_here(letter, index)?;
+                    self.set_letter_here(letter, index, guess_result)?;
                 }
                 LetterResult::PresentNotHere => {
-                    self.set_letter_present_not_here(letter, index)?;
+                    self.set_letter_present_not_here(letter, index, guess_result)?;
                 }
                 LetterResult::NotPresent => {
                     self.set_letter_not_present(letter, index, guess_result)?;
@@ -191,21 +192,22 @@ impl WordRestrictions {
         Ok(())
     }
 
-    fn set_letter_here(&mut self, letter: char, location: usize) -> Result<(), WordleError> {
-        let letter_index = self.get_letter_index(letter);
-        let mut value = &mut self.letters[letter_index];
-        match value {
-            KnownLetter::Unknown => {
-                let mut presence = PresentLetter::new(self.word_length);
-                presence.set_must_be_at(location)?;
-                *value = KnownLetter::Present(presence);
-            }
-            KnownLetter::Present(presence) => {
-                presence.set_must_be_at(location)?;
-            }
-            KnownLetter::NotPresent => {
-                return Err(WordleError::InvalidResults);
-            }
+    fn set_letter_here(
+        &mut self,
+        letter: char,
+        location: usize,
+        result: &GuessResult,
+    ) -> Result<(), WordleError> {
+        let mut presence = self
+            .present_letters
+            .entry(letter)
+            .or_insert(PresentLetter::new(self.word_length));
+        presence.set_must_be_at(location)?;
+        // Remove from the not present letters if it was present. This could happen if the guess
+        // included the letter in two places, but the correct word only included it in the latter
+        // place.
+        if self.not_present_letters.remove(&letter) {
+            return WordRestrictions::set_required_count(letter, result, presence);
         }
         Ok(())
     }
@@ -214,21 +216,18 @@ impl WordRestrictions {
         &mut self,
         letter: char,
         location: usize,
+        result: &GuessResult,
     ) -> Result<(), WordleError> {
-        let letter_index = self.get_letter_index(letter);
-        let mut value = &mut self.letters[letter_index];
-        match value {
-            KnownLetter::Unknown => {
-                let mut presence = PresentLetter::new(self.word_length);
-                presence.set_must_not_be_at(location)?;
-                *value = KnownLetter::Present(presence);
-            }
-            KnownLetter::Present(presence) => {
-                presence.set_must_not_be_at(location)?;
-            }
-            KnownLetter::NotPresent => {
-                return Err(WordleError::InvalidResults);
-            }
+        let mut presence = self
+            .present_letters
+            .entry(letter)
+            .or_insert(PresentLetter::new(self.word_length));
+        presence.set_must_not_be_at(location)?;
+        // Remove from the not present letters if it was present. This could happen if the guess
+        // included the letter in two places, but the correct word only included it in the latter
+        // place.
+        if self.not_present_letters.remove(&letter) {
+            return WordRestrictions::set_required_count(letter, result, presence);
         }
         Ok(())
     }
@@ -239,37 +238,34 @@ impl WordRestrictions {
         location: usize,
         result: &GuessResult,
     ) -> Result<(), WordleError> {
-        let letter_index = self.get_letter_index(letter);
-        let mut value = &mut self.letters[letter_index];
-        match value {
-            KnownLetter::Present(presence) => {
-                if presence.state(location) == LocatedLetterState::Here {
-                    return Err(WordleError::InvalidResults);
-                }
-                // If the letter is present, but this result was `NotPresent`, then it means it's
-                // only in the word as many times as it was given a `Correct` or  `PresentNotHere`
-                // hint.
-                let num_times_present = result
-                    .guess
-                    .char_indices()
-                    .filter(|(index, other_letter)| {
-                        *other_letter == letter
-                            && *result.results.get(*index).unwrap() != LetterResult::NotPresent
-                    })
-                    .count();
-                presence.set_max_count(num_times_present as u8)?;
+        if let Entry::Occupied(mut presence_entry) = self.present_letters.entry(letter) {
+            let mut presence = presence_entry.get_mut();
+            if presence.state(location) == LocatedLetterState::Here {
+                return Err(WordleError::InvalidResults);
             }
-            KnownLetter::NotPresent => {}
-            KnownLetter::Unknown => {
-                *value = KnownLetter::NotPresent;
-            }
+            return WordRestrictions::set_required_count(letter, result, presence);
         }
+        self.not_present_letters.insert(letter);
         Ok(())
     }
 
-    #[inline(always)]
-    fn get_letter_index(&self, letter: char) -> usize {
-        letter as usize - 'a' as usize
+    fn set_required_count(
+        letter: char,
+        guess_result: &GuessResult,
+        presence: &mut PresentLetter,
+    ) -> Result<(), WordleError> {
+        // If the letter is present, but this result was `NotPresent`, then it means it's
+        // only in the word as many times as it was given a `Correct` or  `PresentNotHere`
+        // hint.
+        let num_times_present = guess_result
+            .guess
+            .char_indices()
+            .filter(|(index, other_letter)| {
+                *other_letter == letter
+                    && *guess_result.results.get(*index).unwrap() != LetterResult::NotPresent
+            })
+            .count();
+        presence.set_required_count(num_times_present as u8)
     }
 
     // /// Adds the given restrictions to this restriction.
@@ -282,20 +278,30 @@ impl WordRestrictions {
     //         .extend(other.must_not_contain.iter().map(Clone::clone));
     // }
 
-    // /// Returns `true` iff the given word satisfies these restrictions.
-    // pub fn is_satisfied_by(&self, word: &str) -> bool {
-    //     self.must_contain_here
-    //         .iter()
-    //         .all(|ll| word.chars().nth(ll.location as usize) == Some(ll.letter))
-    //         && self.must_contain_but_not_here.iter().all(|ll| {
-    //             word.chars().nth(ll.location as usize) != Some(ll.letter)
-    //                 && word.contains(ll.letter)
-    //         })
-    //         && !self
-    //             .must_not_contain
-    //             .iter()
-    //             .any(|letter| word.contains(*letter))
-    // }
+    /// Returns `true` iff the given word satisfies these restrictions.
+    pub fn is_satisfied_by(&self, word: &str) -> bool {
+        word.len() == self.word_length as usize
+            && self.present_letters.iter().all(|(letter, presence)| {
+                let mut count_found = 0;
+                for (index, word_letter) in word.char_indices() {
+                    if word_letter == *letter {
+                        count_found += 1;
+                        if presence.state(index) == LocatedLetterState::NotHere {
+                            return false;
+                        }
+                    } else if presence.state(index) == LocatedLetterState::Here {
+                        return false;
+                    }
+                }
+                if let Some(required_count) = presence.maybe_required_count() {
+                    return count_found == required_count;
+                }
+                count_found != 0
+            })
+            && word
+                .chars()
+                .all(|letter| !self.not_present_letters.contains(&letter))
+    }
 }
 
 #[cfg(test)]
@@ -397,7 +403,7 @@ mod tests {
     fn present_letter_max_count_then_here_fills_remainder_not_here() -> Result<(), WordleError> {
         let mut letter = PresentLetter::new(3);
 
-        letter.set_max_count(2)?;
+        letter.set_required_count(2)?;
         letter.set_must_be_at(1)?;
 
         assert_eq!(letter.state(0), LocatedLetterState::Unknown);
@@ -423,7 +429,7 @@ mod tests {
         let mut letter = PresentLetter::new(3);
 
         letter.set_must_be_at(1)?;
-        letter.set_max_count(1)?;
+        letter.set_required_count(1)?;
 
         assert_eq!(letter.state(0), LocatedLetterState::NotHere);
         assert_eq!(letter.state(1), LocatedLetterState::Here);
@@ -436,7 +442,7 @@ mod tests {
         let mut letter = PresentLetter::new(3);
 
         letter.set_must_be_at(1)?;
-        letter.set_max_count(2)?;
+        letter.set_required_count(2)?;
         letter.set_must_not_be_at(0)?;
 
         assert_eq!(letter.state(0), LocatedLetterState::NotHere);
@@ -451,7 +457,10 @@ mod tests {
 
         letter.set_must_be_at(0)?;
         letter.set_must_be_at(1)?;
-        assert_eq!(letter.set_max_count(1), Err(WordleError::InvalidResults));
+        assert_eq!(
+            letter.set_required_count(1),
+            Err(WordleError::InvalidResults)
+        );
         Ok(())
     }
 
@@ -461,7 +470,10 @@ mod tests {
 
         letter.set_must_not_be_at(0)?;
         letter.set_must_not_be_at(1)?;
-        assert_eq!(letter.set_max_count(2), Err(WordleError::InvalidResults));
+        assert_eq!(
+            letter.set_required_count(2),
+            Err(WordleError::InvalidResults)
+        );
         Ok(())
     }
 
@@ -483,6 +495,66 @@ mod tests {
             letter.set_must_not_be_at(0),
             Err(WordleError::InvalidResults)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_is_satisfied_by_no_restrictions() {
+        let restrictions = WordRestrictions::new(4);
+
+        assert!(restrictions.is_satisfied_by("abcd"));
+        assert!(restrictions.is_satisfied_by("zzzz"));
+
+        // Wrong length
+        assert_eq!(restrictions.is_satisfied_by(""), false);
+        assert_eq!(restrictions.is_satisfied_by("abcde"), false);
+    }
+
+    #[test]
+    fn word_restrictions_is_satisfied_by_with_restrictions() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+
+        restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+
+        assert!(restrictions.is_satisfied_by("bdba"));
+        assert!(restrictions.is_satisfied_by("dabb"));
+
+        assert_eq!(restrictions.is_satisfied_by("bbba"), false);
+        assert_eq!(restrictions.is_satisfied_by("bcba"), false);
+        assert_eq!(restrictions.is_satisfied_by("adbd"), false);
+        assert_eq!(restrictions.is_satisfied_by("bdbd"), false);
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_is_satisfied_by_with_known_required_count() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+
+        restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+
+        assert!(restrictions.is_satisfied_by("edba"));
+        assert!(restrictions.is_satisfied_by("dabe"));
+        assert!(restrictions.is_satisfied_by("daba"));
+
+        assert_eq!(restrictions.is_satisfied_by("bdba"), false);
+        assert_eq!(restrictions.is_satisfied_by("dcba"), false);
+        assert_eq!(restrictions.is_satisfied_by("adbd"), false);
         Ok(())
     }
 }

@@ -13,6 +13,8 @@ pub enum WordleError {
     NotFound,
     /// Indicates that the given `GuessResult`s are impossible due to some inconsistency.
     InvalidResults,
+    /// Indicates that one or more given characters are not in the supported set.
+    UnsupportedCharacter,
 }
 
 /// The result of a single word guess.
