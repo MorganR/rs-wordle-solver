@@ -2,6 +2,7 @@
 
 mod data;
 mod engine;
+mod restrictions;
 mod results;
 mod trie;
 

@@ -6,6 +6,15 @@ pub enum LetterResult {
     NotPresent,
 }
 
+/// Indicates that an error occurred while trying to guess the objective word.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum WordleError {
+    /// Indicates that the objective word must not be in the word bank.
+    NotFound,
+    /// Indicates that the given `GuessResult`s are impossible due to some inconsistency.
+    InvalidResults,
+}
+
 /// The result of a single word guess.
 #[derive(Debug, PartialEq)]
 pub struct GuessResult<'a> {
