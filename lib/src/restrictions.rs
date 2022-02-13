@@ -41,14 +41,18 @@ impl PresentLetter {
         }
     }
 
+    /// Returns whether the letter must be in, or not in, the given location, or if that is not yet
+    /// known.
     pub fn state(&self, index: usize) -> LocatedLetterState {
         self.located_state[index]
     }
 
+    /// Returns the required number of times this letter must appear in the word, if this is known.
     pub fn maybe_required_count(&self) -> Option<u8> {
         self.maybe_required_count
     }
 
+    /// Returns the minimum number of times this letter must appear in the word.
     pub fn min_count(&self) -> u8 {
         self.min_count
     }
@@ -149,6 +153,27 @@ impl PresentLetter {
         Ok(())
     }
 
+    /// Merges the information known in the other object into this one.
+    pub fn merge(&mut self, other: &PresentLetter) -> Result<(), WordleError> {
+        if let Some(count) = other.maybe_required_count {
+            self.set_required_count(count)?;
+        } else if other.min_count > self.min_count {
+            self.possibly_bump_min_count(other.min_count)?;
+        }
+
+        for (index, state) in other.located_state.iter().enumerate() {
+            if self.located_state[index] == *state {
+                continue;
+            }
+            match state {
+                LocatedLetterState::Here => self.set_must_be_at(index)?,
+                LocatedLetterState::NotHere => self.set_must_not_be_at(index)?,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
     fn set_unknowns_to(&mut self, new_state: LocatedLetterState) {
         let mut count_to_update = &mut self.num_here;
         if new_state == LocatedLetterState::NotHere {
@@ -215,6 +240,58 @@ impl WordRestrictions {
             }
         }
         Ok(())
+    }
+
+    /// Adds the given restrictions to this restriction.
+    pub fn merge(&mut self, other: &WordRestrictions) -> Result<(), WordleError> {
+        if self.word_length != other.word_length {
+            return Err(WordleError::InvalidResults);
+        }
+        for not_present_letter in &other.not_present_letters {
+            if self.present_letters.contains_key(not_present_letter) {
+                return Err(WordleError::InvalidResults);
+            }
+            self.not_present_letters.insert(*not_present_letter);
+        }
+        for (letter, presence) in &other.present_letters {
+            if self.not_present_letters.contains(letter) {
+                return Err(WordleError::InvalidResults);
+            }
+            let mut result = Ok(());
+            self.present_letters
+                .entry(*letter)
+                .and_modify(|known_presence| {
+                    result = known_presence.merge(presence);
+                })
+                .or_insert(presence.clone());
+            result?;
+        }
+        Ok(())
+    }
+
+    /// Returns `true` iff the given word satisfies these restrictions.
+    pub fn is_satisfied_by(&self, word: &str) -> bool {
+        word.len() == self.word_length as usize
+            && self.present_letters.iter().all(|(letter, presence)| {
+                let mut count_found = 0;
+                for (index, word_letter) in word.char_indices() {
+                    if word_letter == *letter {
+                        count_found += 1;
+                        if presence.state(index) == LocatedLetterState::NotHere {
+                            return false;
+                        }
+                    } else if presence.state(index) == LocatedLetterState::Here {
+                        return false;
+                    }
+                }
+                if let Some(required_count) = presence.maybe_required_count() {
+                    return count_found == required_count;
+                }
+                count_found >= presence.min_count()
+            })
+            && word
+                .chars()
+                .all(|letter| !self.not_present_letters.contains(&letter))
     }
 
     fn set_letter_here(
@@ -296,41 +373,6 @@ impl WordRestrictions {
                     && *guess_result.results.get(*index).unwrap() != LetterResult::NotPresent
             })
             .count() as u8
-    }
-
-    // /// Adds the given restrictions to this restriction.
-    // pub fn union(&mut self, other: &WordRestrictions) {
-    //     self.must_contain_here
-    //         .extend(other.must_contain_here.iter().map(Clone::clone));
-    //     self.must_contain_but_not_here
-    //         .extend(other.must_contain_but_not_here.iter().map(Clone::clone));
-    //     self.must_not_contain
-    //         .extend(other.must_not_contain.iter().map(Clone::clone));
-    // }
-
-    /// Returns `true` iff the given word satisfies these restrictions.
-    pub fn is_satisfied_by(&self, word: &str) -> bool {
-        word.len() == self.word_length as usize
-            && self.present_letters.iter().all(|(letter, presence)| {
-                let mut count_found = 0;
-                for (index, word_letter) in word.char_indices() {
-                    if word_letter == *letter {
-                        count_found += 1;
-                        if presence.state(index) == LocatedLetterState::NotHere {
-                            return false;
-                        }
-                    } else if presence.state(index) == LocatedLetterState::Here {
-                        return false;
-                    }
-                }
-                if let Some(required_count) = presence.maybe_required_count() {
-                    return count_found == required_count;
-                }
-                count_found >= presence.min_count()
-            })
-            && word
-                .chars()
-                .all(|letter| !self.not_present_letters.contains(&letter))
     }
 }
 
@@ -607,6 +649,162 @@ mod tests {
 
         assert_eq!(restrictions.is_satisfied_by("edba"), false);
         assert_eq!(restrictions.is_satisfied_by("ebbd"), false);
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_empty_then_merge() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+        let mut other_restrictions = WordRestrictions::new(4);
+        other_restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+
+        restrictions.merge(&other_restrictions)?;
+
+        assert!(restrictions.is_satisfied_by("babd"));
+        assert!(restrictions.is_satisfied_by("baba"));
+        assert_eq!(restrictions.is_satisfied_by("babc"), false);
+        assert_eq!(restrictions.is_satisfied_by("badb"), false);
+        assert_eq!(restrictions.is_satisfied_by("adbb"), false);
+        assert_eq!(restrictions.is_satisfied_by("dbba"), false);
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_merge() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+        let mut other_restrictions = WordRestrictions::new(4);
+        restrictions.update(&GuessResult {
+            guess: "bade",
+            results: vec![
+                LetterResult::Correct,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+                LetterResult::Correct,
+            ],
+        })?;
+        other_restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+
+        restrictions.merge(&other_restrictions)?;
+
+        assert!(restrictions.is_satisfied_by("babe"));
+        assert_eq!(restrictions.is_satisfied_by("baee"), false);
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_merge_wrong_length() {
+        let mut restrictions = WordRestrictions::new(4);
+        let other_restrictions = WordRestrictions::new(5);
+
+        assert_eq!(
+            restrictions.merge(&other_restrictions),
+            Err(WordleError::InvalidResults),
+        );
+    }
+
+    #[test]
+    fn word_restrictions_conflicting_merge_present_then_not_present() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+        let mut other_restrictions = WordRestrictions::new(4);
+        restrictions.update(&GuessResult {
+            guess: "abcd",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+            ],
+        })?;
+        other_restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+
+        assert_eq!(
+            restrictions.merge(&other_restrictions),
+            Err(WordleError::InvalidResults)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_conflicting_merge_not_present_then_present() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+        let mut other_restrictions = WordRestrictions::new(4);
+        restrictions.update(&GuessResult {
+            guess: "abcd",
+            results: vec![
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+            ],
+        })?;
+        other_restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+
+        assert_eq!(
+            restrictions.merge(&other_restrictions),
+            Err(WordleError::InvalidResults)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_conflicting_merge_present_different_place() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+        let mut other_restrictions = WordRestrictions::new(4);
+        restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+        other_restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+
+        assert_eq!(
+            restrictions.merge(&other_restrictions),
+            Err(WordleError::InvalidResults)
+        );
         Ok(())
     }
 }
