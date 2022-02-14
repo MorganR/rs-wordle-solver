@@ -1,6 +1,8 @@
+use crate::data::LocatedLetter;
 use crate::results::GuessResult;
 use crate::results::LetterResult;
 use crate::results::WordleError;
+use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -197,7 +199,16 @@ impl PresentLetter {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum LetterRestriction {
+    Here,
+    PresentMaybeHere,
+    PresentNotHere,
+    NotPresent,
+}
+
 /// Defines letter restrictions that a word must adhere to.
+#[derive(PartialEq, Clone)]
 pub struct WordRestrictions {
     word_length: u8,
     present_letters: HashMap<char, PresentLetter>,
@@ -206,10 +217,10 @@ pub struct WordRestrictions {
 
 impl WordRestrictions {
     /// Creates a `WordRestrictions` object for the given word length with all letters unknown.
-    fn new(word_length: u8) -> WordRestrictions {
+    pub fn new(word_length: u8) -> WordRestrictions {
         WordRestrictions {
             word_length: word_length,
-            present_letters: HashMap::new(),
+            present_letters: HashMap::with_capacity(min(word_length as usize, 26)),
             not_present_letters: HashSet::new(),
         }
     }
@@ -294,13 +305,42 @@ impl WordRestrictions {
                 .all(|letter| !self.not_present_letters.contains(&letter))
     }
 
+    pub fn is_state_known(&self, ll: LocatedLetter) -> bool {
+        if let Some(presence) = self.present_letters.get(&ll.letter) {
+            return presence.state(ll.location as usize) != LocatedLetterState::Unknown;
+        }
+        self.not_present_letters.contains(&ll.letter)
+    }
+
+    /// Returns the current known state of this letter, either:
+    ///
+    ///  * `None` -> Nothing is known about the letter.
+    ///  * `Some`:
+    ///     * `NotPresent` -> The letter is not in the word.
+    ///     * `PresentNotHere` -> The letter is present but not here.
+    ///     * `Here` -> The letter goes here.
+    ///     * `PresentMaybeHere` -> The letter is present, but we don't know if it's here or not.
+    pub fn state(&self, ll: &LocatedLetter) -> Option<LetterRestriction> {
+        if let Some(presence) = self.present_letters.get(&ll.letter) {
+            return match presence.state(ll.location as usize) {
+                LocatedLetterState::Here => Some(LetterRestriction::Here),
+                LocatedLetterState::NotHere => Some(LetterRestriction::PresentNotHere),
+                LocatedLetterState::Unknown => Some(LetterRestriction::PresentMaybeHere),
+            };
+        }
+        if self.not_present_letters.contains(&ll.letter) {
+            return Some(LetterRestriction::NotPresent);
+        }
+        return None;
+    }
+
     fn set_letter_here(
         &mut self,
         letter: char,
         location: usize,
         result: &GuessResult,
     ) -> Result<(), WordleError> {
-        let mut presence = self
+        let presence = self
             .present_letters
             .entry(letter)
             .or_insert(PresentLetter::new(self.word_length));
@@ -326,7 +366,7 @@ impl WordRestrictions {
         location: usize,
         result: &GuessResult,
     ) -> Result<(), WordleError> {
-        let mut presence = self
+        let presence = self
             .present_letters
             .entry(letter)
             .or_insert(PresentLetter::new(self.word_length));
@@ -339,9 +379,9 @@ impl WordRestrictions {
             // If the letter is present, but this result was `NotPresent`, then it means it's
             // only in the word as many times as it was given a `Correct` or  `PresentNotHere`
             // hint.
-            presence.set_required_count(num_times_present);
+            presence.set_required_count(num_times_present)?;
         } else {
-            presence.possibly_bump_min_count(num_times_present);
+            presence.possibly_bump_min_count(num_times_present)?;
         }
         Ok(())
     }
@@ -353,7 +393,7 @@ impl WordRestrictions {
         result: &GuessResult,
     ) -> Result<(), WordleError> {
         if let Entry::Occupied(mut presence_entry) = self.present_letters.entry(letter) {
-            let mut presence = presence_entry.get_mut();
+            let presence = presence_entry.get_mut();
             if presence.state(location) == LocatedLetterState::Here {
                 return Err(WordleError::InvalidResults);
             }

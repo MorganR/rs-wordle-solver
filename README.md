@@ -140,7 +140,7 @@ For each letter, score:
 
    * If this letter has not yet been scored in this word:
 
-      * 2 points for every possible word with this letter in the same place.
+      * 1 point for every possible word with this letter in the same place.
       * 1 point for every possible word with this letter in another place.
    
    * Else:
@@ -162,7 +162,7 @@ For each letter, score:
 
 **Average number of guesses:** 3.90 +/- 0.99
 
-### MostExpectedEliminationsGuesser
+### MaxApproximateEliminationsGuesser
 
 This selects the word that is expected to eliminate the most other words. The expected number of
 eliminations is computed approximately. For each letter, expected number of eliminations is

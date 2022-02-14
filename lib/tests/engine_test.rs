@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::result::Result;
 use wordle_solver::*;
 
 #[test]
@@ -6,7 +7,7 @@ fn calculate_best_guess_no_words() {
     let bank = create_word_bank(vec![]);
     let all_words = bank.all_words();
     let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
-    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, all_words, scorer);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     assert_eq!(guesser.select_next_guess(), None);
 }
@@ -16,17 +17,17 @@ fn calculate_best_guess_chooses_best_word() {
     let bank = create_word_bank(vec!["abcz", "wxyz", "defy", "ghix"]);
     let all_words = bank.all_words();
     let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
-    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, all_words, scorer);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     assert_eq!(guesser.select_next_guess(), Some(Rc::from("wxyz")));
 }
 
 #[test]
-fn update_guess_result_modifies_next_guess() {
+fn update_guess_result_modifies_next_guess() -> Result<(), WordleError> {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
     let all_words = bank.all_words();
     let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
-    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, all_words, scorer);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     guesser.update(&GuessResult {
         guess: "weyz",
@@ -36,9 +37,10 @@ fn update_guess_result_modifies_next_guess() {
             LetterResult::PresentNotHere,
             LetterResult::NotPresent,
         ],
-    });
+    })?;
 
     assert_eq!(guesser.select_next_guess(), Some(Rc::from("defy")));
+    Ok(())
 }
 
 #[test]

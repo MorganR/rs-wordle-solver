@@ -110,9 +110,8 @@ fn run_benchmark(word_bank: &WordBank) {
 }
 
 fn play_single_game(word: &str, word_bank: &WordBank) {
-    let tracker = WordTracker::new(&word_bank.all_words());
-    let possibilities = MaxExpectedEliminationsScorer::new(tracker);
-    let result = play_game_with_scorer(word, 128, word_bank, possibilities);
+    let scorer = MaxEliminationsScorer::new(word_bank.all_words()); 
+    let result = play_game_with_scorer(word, 128, word_bank, scorer);
     match result {
         GameResult::Success(guesses) => {
             println!("Solved it! It took me {} guesses.", guesses.len());
@@ -139,7 +138,7 @@ fn play_single_game(word: &str, word_bank: &WordBank) {
 fn play_interactive_game(word_bank: &WordBank) -> io::Result<()> {
     let all_words = word_bank.all_words();
     let scorer = MaxUniqueUnguessedLetterFrequencyScorer::new(&all_words);
-    let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, all_words, scorer);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, word_bank, scorer);
     println!("Choose a word from the word-list. Press enter once you've chosen.");
 
     {

@@ -1,5 +1,5 @@
 /// The result of a given letter at a specific location.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub enum LetterResult {
     Correct,
     PresentNotHere,

@@ -1,12 +1,11 @@
 use crate::results::*;
+use std::cmp::max;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::io::BufRead;
 use std::io::Result;
-use std::iter::zip;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -21,81 +20,6 @@ pub struct LocatedLetter {
 impl LocatedLetter {
     pub fn new(letter: char, location: u8) -> LocatedLetter {
         LocatedLetter { letter, location }
-    }
-}
-
-/// Defines letter restrictions that a word must adhere to.
-pub struct WordRestrictions {
-    /// Letters that must occur in specific locations in the word.
-    pub must_contain_here: HashSet<LocatedLetter>,
-    /// Letters that must be present, but must be somewhere else in the word.
-    pub must_contain_but_not_here: HashSet<LocatedLetter>,
-    /// Letters that must not be in the word.
-    pub must_not_contain: HashSet<char>,
-}
-
-impl WordRestrictions {
-    /// Creates a new empty WordRestrictions struct.
-    pub fn new() -> WordRestrictions {
-        WordRestrictions {
-            must_contain_here: HashSet::new(),
-            must_contain_but_not_here: HashSet::new(),
-            must_not_contain: HashSet::new(),
-        }
-    }
-
-    /// Returns the restrictions imposed by the given result.
-    pub fn from_result(result: &GuessResult) -> WordRestrictions {
-        let mut restrictions = WordRestrictions::new();
-        restrictions.update(result);
-        restrictions
-    }
-
-    /// Adds restrictions arising from the given guess result.
-    pub fn update(&mut self, guess_result: &GuessResult) {
-        for ((index, letter), result) in zip(
-            guess_result.guess.char_indices(),
-            guess_result.results.iter(),
-        ) {
-            match result {
-                LetterResult::Correct => {
-                    self.must_contain_here
-                        .insert(LocatedLetter::new(letter, index as u8));
-                }
-                LetterResult::PresentNotHere => {
-                    self.must_contain_but_not_here
-                        .insert(LocatedLetter::new(letter, index as u8));
-                }
-                LetterResult::NotPresent => {
-                    self.must_not_contain.insert(letter);
-                }
-            }
-        }
-    }
-
-    /// Adds the given restrictions to this restriction.
-    pub fn union(&mut self, other: &WordRestrictions) {
-        self.must_contain_here
-            .extend(other.must_contain_here.iter().map(Clone::clone));
-        self.must_contain_but_not_here
-            .extend(other.must_contain_but_not_here.iter().map(Clone::clone));
-        self.must_not_contain
-            .extend(other.must_not_contain.iter().map(Clone::clone));
-    }
-
-    /// Returns `true` iff the given word satisfies these restrictions.
-    pub fn is_satisfied_by(&self, word: &str) -> bool {
-        self.must_contain_here
-            .iter()
-            .all(|ll| word.chars().nth(ll.location as usize) == Some(ll.letter))
-            && self.must_contain_but_not_here.iter().all(|ll| {
-                word.chars().nth(ll.location as usize) != Some(ll.letter)
-                    && word.contains(ll.letter)
-            })
-            && !self
-                .must_not_contain
-                .iter()
-                .any(|letter| word.contains(*letter))
     }
 }
 
@@ -146,9 +70,7 @@ impl WordBank {
                     if word_length == 0 {
                         return None;
                     }
-                    if max_word_length < word_length {
-                        max_word_length = word_length;
-                    }
+                    max_word_length = max(word_length, max_word_length);
                     Some(Rc::from(word.to_lowercase().as_str()))
                 })
                 .collect(),
@@ -175,6 +97,7 @@ impl WordBank {
 /// Counts the number of words that have letters in certain locations.
 #[derive(Clone)]
 pub struct WordCounter {
+    num_words: u32,
     num_words_by_ll: HashMap<LocatedLetter, u32>,
     num_words_by_letter: HashMap<char, u32>,
 }
@@ -200,6 +123,7 @@ impl WordCounter {
             }
         }
         WordCounter {
+            num_words: words.len() as u32,
             num_words_by_ll: num_words_by_ll,
             num_words_by_letter: num_words_by_letter,
         }
@@ -207,6 +131,7 @@ impl WordCounter {
 
     /// Removes the given word from the counter.
     pub fn remove(&mut self, word: &str) {
+        self.num_words -= 1;
         for (index, letter) in word.char_indices() {
             self.num_words_by_ll
                 .entry(LocatedLetter::new(letter, index as u8))
@@ -232,6 +157,11 @@ impl WordCounter {
     /// Retrieves the count of words that contain the given letter.
     pub fn num_words_with_letter(&self, letter: char) -> u32 {
         *self.num_words_by_letter.get(&letter).unwrap_or(&0)
+    }
+
+    /// Retrieves the total number of words in this counter.
+    pub fn num_words(&self) -> u32 {
+        self.num_words
     }
 }
 
@@ -312,6 +242,7 @@ pub struct WordTracker<'a> {
     all_words: Vec<Rc<str>>,
     words_by_letter: HashMap<char, Vec<Rc<str>>>,
     words_by_located_letter: HashMap<LocatedLetter, Vec<Rc<str>>>,
+    max_word_length: u8,
     phantom: PhantomData<&'a Rc<str>>,
 }
 
@@ -323,7 +254,9 @@ impl<'a> WordTracker<'a> {
         let all_words: Vec<Rc<str>> = words.into_iter().map(Rc::clone).collect();
         let mut words_by_letter: HashMap<char, Vec<Rc<str>>> = HashMap::new();
         let mut words_by_located_letter: HashMap<LocatedLetter, Vec<Rc<str>>> = HashMap::new();
+        let mut max_word_length = 0;
         for word in all_words.iter() {
+            max_word_length = max(max_word_length, word.len());
             for (index, letter) in word.as_ref().char_indices() {
                 words_by_located_letter
                     .entry(LocatedLetter::new(letter, index as u8))
@@ -347,12 +280,17 @@ impl<'a> WordTracker<'a> {
             all_words: all_words,
             words_by_letter: words_by_letter,
             words_by_located_letter: words_by_located_letter,
+            max_word_length: max_word_length as u8,
             phantom: PhantomData,
         }
     }
 
     pub fn all_words(&self) -> &[Rc<str>] {
         &self.all_words
+    }
+
+    pub fn max_word_length(&self) -> u8 {
+        self.max_word_length
     }
 
     pub fn has_letter(&self, letter: char) -> bool {
@@ -404,6 +342,7 @@ impl<'a> Clone for WordTracker<'a> {
             all_words: self.all_words.clone(),
             words_by_located_letter: self.words_by_located_letter.clone(),
             words_by_letter: self.words_by_letter.clone(),
+            max_word_length: self.max_word_length,
             phantom: PhantomData,
         }
     }
