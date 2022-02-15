@@ -30,19 +30,20 @@ One sample benchmark:
 
 |Num guesses|Num games|
 |-----------|---------|
-|2|99|
-|3|812|
-|4|1584|
-|5|1207|
-|6|572|
-|7|205|
-|8|80|
-|9|33|
-|10|5|
-|11|4|
+|1|1|
+|2|106|
+|3|816|
+|4|1628|
+|5|1248|
+|6|518|
+|7|180|
+|8|67|
+|9|28|
+|10|7|
+|11|2|
 |12|1|
 
-**Average number of guesses:** 4.54 +/- 1.30
+**Average number of guesses:** 4.49 +/- 1.26
 
 ### MaxUniqueLetterFrequencyScorer
 
@@ -56,9 +57,9 @@ unique letters in the possible words.
 |1|1|
 |2|137|
 |3|1264|
-|4|1828|
-|5|831|
-|6|322|
+|4|1831|
+|5|829|
+|6|321|
 |7|129|
 |8|57|
 |9|26|
@@ -99,9 +100,9 @@ been guessed.
 |1|1|
 |2|137|
 |3|1264|
-|4|1828|
-|5|831|
-|6|322|
+|4|1831|
+|5|829|
+|6|321|
 |7|129|
 |8|57|
 |9|26|
@@ -116,16 +117,16 @@ been guessed.
 |-----------|---------|
 |1|1|
 |2|32|
-|3|1018|
-|4|2228|
-|5|1052|
-|6|230|
+|3|1019|
+|4|2227|
+|5|1054|
+|6|228|
 |7|36|
 |8|5|
 
 **Average number of guesses:** 4.12 +/- 0.87
 
-### ScoreLocatedLettersGuesser
+### LocatedLettersScorer
 
 This selects the word that maximizes a score, based on both the presence and the the location of
 that letter in the possible words. The score is computed for each letter and then summed. Each
@@ -150,19 +151,19 @@ For each letter, score:
 |Num guesses|Num games|
 |-----------|---------|
 |1|1|
-|2|124|
-|3|1559|
-|4|1997|
-|5|634|
-|6|195|
-|7|64|
-|8|20|
-|9|6|
+|2|114|
+|3|1558|
+|4|2023|
+|5|633|
+|6|180|
+|7|62|
+|8|22|
+|9|7|
 |10|2|
 
 **Average number of guesses:** 3.90 +/- 0.99
 
-### MaxApproximateEliminationsGuesser
+### MaxApproximateEliminationsScorer
 
 This selects the word that is expected to eliminate the most other words. The expected number of
 eliminations is computed approximately. For each letter, expected number of eliminations is
@@ -184,13 +185,13 @@ These per-letter expectations are then summed together to get the expectation va
 |-----------|---------|
 |1|1|
 |2|72|
-|3|1280|
-|4|2532|
-|5|658|
-|6|56|
+|3|1303|
+|4|2507|
+|5|664|
+|6|52|
 |7|3|
 
-**Average number of guesses:** 3.86 +/- 0.72
+**Average number of guesses:** 3.85 +/- 0.72
 
 ## Speed Benchmark
 

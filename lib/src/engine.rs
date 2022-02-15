@@ -11,20 +11,17 @@ use std::result::Result;
 /// Attempts to guess the given word within the maximum number of guesses, using words from the
 /// word bank.
 pub fn play_game(word_to_guess: &str, max_num_guesses: u32, word_bank: &WordBank) -> GameResult {
-    let all_words = word_bank.all_words();
-    let scorer = MaxUniqueUnguessedLetterFrequencyScorer::new(&all_words);
-    play_game_with_scorer(word_to_guess, max_num_guesses, word_bank, scorer)
+    let guesser = RandomGuesser::new(&word_bank);
+    play_game_with_guesser(word_to_guess, max_num_guesses, guesser)
 }
 
 /// Attempts to guess the given word within the maximum number of guesses, using words from the
 /// word bank and using the given word scorer.
-pub fn play_game_with_scorer<S: WordScorer>(
+pub fn play_game_with_guesser<G: Guesser>(
     word_to_guess: &str,
     max_num_guesses: u32,
-    word_bank: &WordBank,
-    word_scorer: S,
+    mut guesser: G,
 ) -> GameResult {
-    let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, word_bank, word_scorer);
     let mut guesses: Vec<Box<str>> = Vec::new();
     for _ in 1..=max_num_guesses {
         let maybe_guess = guesser.select_next_guess();
@@ -103,13 +100,14 @@ pub fn get_result_for_guess<'a>(objective: &str, guess: &'a str) -> GuessResult<
 /// Guesses words in order to solve a single Wordle.
 pub trait Guesser {
     /// Updates this guesser with information about a word.
-    fn update<'a, 'b>(&mut self, result: &'b GuessResult) -> Result<(), WordleError>;
+    fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError>;
 
     /// Selects a new guess for the Wordle, if any words are possible.
     fn select_next_guess(&mut self) -> Option<Rc<str>>;
 }
 
 /// Guesses at random from the possible words that meet the restrictions.
+#[derive(Clone)]
 pub struct RandomGuesser {
     possible_words: Vec<Rc<str>>,
     restrictions: WordRestrictions,
@@ -125,8 +123,8 @@ impl RandomGuesser {
 }
 
 impl Guesser for RandomGuesser {
-    fn update<'a, 'b>(&mut self, result: &'b GuessResult) -> Result<(), WordleError> {
-        self.restrictions.update(result);
+    fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError> {
+        self.restrictions.update(result)?;
         self.possible_words = self
             .possible_words
             .iter()
@@ -166,7 +164,7 @@ pub trait WordScorer {
 }
 
 /// Indicates which set of words to guess from.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum GuessFrom {
     /// Choose the next guess from any unguessed word in the whole word list.
     AllUnguessedWords,
@@ -175,9 +173,10 @@ pub enum GuessFrom {
 }
 
 /// Selects the next guess that maximizes the score according to the given scorer.
+#[derive(Clone)]
 pub struct MaxScoreGuesser<T>
 where
-    T: WordScorer,
+    T: WordScorer + Clone,
 {
     guess_mode: GuessFrom,
     all_unguessed_words: Vec<Rc<str>>,
@@ -188,7 +187,7 @@ where
 
 impl<T> MaxScoreGuesser<T>
 where
-    T: WordScorer,
+    T: WordScorer + Clone,
 {
     pub fn new(guess_mode: GuessFrom, word_bank: &WordBank, scorer: T) -> MaxScoreGuesser<T> {
         MaxScoreGuesser {
@@ -203,9 +202,9 @@ where
 
 impl<T> Guesser for MaxScoreGuesser<T>
 where
-    T: WordScorer,
+    T: WordScorer + Clone,
 {
-    fn update<'b>(&mut self, result: &'b GuessResult) -> Result<(), WordleError> {
+    fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError> {
         if let Some(position) = self
             .all_unguessed_words
             .iter()
@@ -214,7 +213,7 @@ where
             self.all_unguessed_words.swap_remove(position);
         }
         // Unless the current guess was the winning guess, this also filters out the current guess.
-        self.restrictions.update(result);
+        self.restrictions.update(result)?;
         self.possible_words
             .retain(|word| self.restrictions.is_satisfied_by(word.as_ref()));
         self.scorer
@@ -256,6 +255,7 @@ where
 
 /// Scores words by the number of unique words that have the same letter (in any location), summed
 /// across each unique letter in the word.
+#[derive(Clone)]
 pub struct MaxUniqueLetterFrequencyScorer {
     num_words_per_letter: HashMap<char, u32>,
 }
@@ -304,6 +304,7 @@ impl WordScorer for MaxUniqueLetterFrequencyScorer {
 
 /// Scores words by the number of unique words that have the same letter (in any location), summed
 /// across each unique and not-yet guessed letter in the word.
+#[derive(Clone)]
 pub struct MaxUniqueUnguessedLetterFrequencyScorer {
     guessed_letters: HashSet<char>,
     num_words_per_letter: HashMap<char, u32>,
@@ -375,6 +376,7 @@ impl<'a> PossibleOutcomes<'a> {
     }
 }
 
+#[derive(Clone)]
 pub struct MaxEliminationsScorer {
     possible_words: Vec<Rc<str>>,
 }
@@ -418,6 +420,7 @@ impl WordScorer for MaxEliminationsScorer {
 
 /// Scores words by the number of unique words that have the same letter (in any location), summed
 /// across each unique and not-yet guessed letter in the word.
+#[derive(Clone)]
 pub struct MaxExpectedEliminationsScorer<'a> {
     restrictions: WordRestrictions,
     possible_words: WordTracker<'a>,
@@ -606,6 +609,7 @@ impl<'a> WordScorer for MaxExpectedEliminationsScorer<'a> {
 ///      * Else:
 ///
 ///         * 1 point for every possible word with this letter in the same place.
+#[derive(Clone)]
 pub struct LocatedLettersScorer {
     counter: WordCounter,
     restrictions: WordRestrictions,
@@ -667,6 +671,7 @@ impl WordScorer for LocatedLettersScorer {
 }
 
 /// Chooses the word that is expected to eliminate approximately the most other words.
+#[derive(Clone)]
 pub struct MaxApproximateEliminationsScorer {
     counter: WordCounter,
 }
