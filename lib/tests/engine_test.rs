@@ -63,30 +63,26 @@ fn play_game_with_known_word() {
 }
 
 #[test]
-fn play_game_with_scorer_with_unknown_word() {
+fn play_game_with_guesser_with_unknown_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
     let tracker = WordTracker::new(&bank.all_words());
-    let precomputed_possibilities =
-        MaxExpectedEliminationsScorer::precompute_possibilities(tracker.clone());
-    let scorer =
-        MaxExpectedEliminationsScorer::from_precomputed(tracker, precomputed_possibilities);
+    let scorer = MaxExpectedEliminationsScorer::new(tracker);
+    let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     assert_eq!(
-        play_game_with_scorer("nope", 10, &bank, scorer),
+        play_game_with_guesser("nope", 10, guesser),
         GameResult::UnknownWord
     );
 }
 
 #[test]
-fn play_game_with_scorer_with_known_word() {
+fn play_game_with_guesser_with_known_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
     let tracker = WordTracker::new(&bank.all_words());
-    let precomputed_possibilities =
-        MaxExpectedEliminationsScorer::precompute_possibilities(tracker.clone());
-    let scorer =
-        MaxExpectedEliminationsScorer::from_precomputed(tracker, precomputed_possibilities);
+    let scorer = MaxExpectedEliminationsScorer::new(tracker);
+    let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
-    if let GameResult::Success(guesses) = play_game_with_scorer("abcz", 10, &bank, scorer) {
+    if let GameResult::Success(guesses) = play_game_with_guesser("abcz", 10, guesser) {
         assert!(guesses.len() < 10);
         assert_eq!(guesses.iter().last(), Some(&Box::from("abcz")));
     } else {
