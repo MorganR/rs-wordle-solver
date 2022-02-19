@@ -93,8 +93,10 @@ fn play_game_with_guesser_with_known_word() {
 #[test]
 fn play_game_takes_too_many_guesses() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
+    let scorer = MaxUniqueLetterFrequencyScorer::new(&bank.all_words());
+    let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
-    if let GameResult::Failure(guesses) = play_game("abcz", 1, &bank) {
+    if let GameResult::Failure(guesses) = play_game_with_guesser("abcz", 1, guesser) {
         assert_eq!(guesses.len(), 1);
         assert!(!guesses.contains(&Box::from("abcz")));
     } else {

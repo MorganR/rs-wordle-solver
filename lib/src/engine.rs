@@ -43,60 +43,6 @@ pub fn play_game_with_guesser<G: Guesser>(
     return GameResult::Failure(guesses);
 }
 
-/// Determines the result of the given `guess` when applied to the given `objective`.
-pub fn get_result_for_guess<'a>(objective: &str, guess: &'a str) -> GuessResult<'a> {
-    if objective.len() != guess.len() {
-        panic!(
-            "Objective ({}) must have the same length as the guess ({})",
-            objective, guess
-        );
-    }
-    let mut objective_letter_indices: HashMap<char, HashSet<usize>> = HashMap::new();
-    for (index, letter) in objective.char_indices() {
-        objective_letter_indices
-            .entry(letter)
-            .or_insert(HashSet::new())
-            .insert(index);
-    }
-    let mut guess_letter_indices: HashMap<char, HashSet<usize>> = HashMap::new();
-    for (index, letter) in guess.char_indices() {
-        guess_letter_indices
-            .entry(letter)
-            .or_insert(HashSet::new())
-            .insert(index);
-    }
-    GuessResult {
-        guess: guess,
-        results: guess
-            .char_indices()
-            .map(|(index, letter)| {
-                if let Some(indices) = objective_letter_indices.get(&letter) {
-                    if indices.contains(&index) {
-                        return LetterResult::Correct;
-                    }
-                    let mut num_in_place = 0;
-                    let mut num_ahead_not_in_place = 0;
-                    let guess_indices = guess_letter_indices.get(&letter).unwrap();
-                    for guess_index in guess_indices.iter() {
-                        if indices.contains(guess_index) {
-                            num_in_place += 1;
-                        } else if *guess_index < index {
-                            num_ahead_not_in_place += 1;
-                        }
-                    }
-                    if indices.len() - num_in_place > num_ahead_not_in_place {
-                        return LetterResult::PresentNotHere;
-                    } else {
-                        return LetterResult::NotPresent;
-                    }
-                } else {
-                    return LetterResult::NotPresent;
-                }
-            })
-            .collect(),
-    }
-}
-
 /// Guesses words in order to solve a single Wordle.
 pub trait Guesser {
     /// Updates this guesser with information about a word.
@@ -379,20 +325,30 @@ impl<'a> PossibleOutcomes<'a> {
 #[derive(Clone)]
 pub struct MaxEliminationsScorer {
     possible_words: Vec<Rc<str>>,
+    guess_results: GuessResults,
 }
 
 impl MaxEliminationsScorer {
     pub fn new(possible_words: Vec<Rc<str>>) -> MaxEliminationsScorer {
+        let guess_results = GuessResults::compute(&possible_words);
         MaxEliminationsScorer {
             possible_words: possible_words,
+            guess_results: guess_results,
         }
     }
 
-    fn compute_expected_eliminations(&mut self, word: &str) -> f64 {
-        let mut matching_results: HashMap<Vec<LetterResult>, usize> = HashMap::new();
+    fn compute_expected_eliminations(&mut self, word: &Rc<str>) -> f64 {
+        let mut matching_results: HashMap<CompressedGuessResult, usize> = HashMap::new();
         for possible_word in &self.possible_words {
-            let guess_result = get_result_for_guess(possible_word.as_ref(), word);
-            *matching_results.entry(guess_result.results).or_insert(0) += 1;
+            let guess_result = self
+                .guess_results
+                .get_result(possible_word, word)
+                .unwrap_or_else(|| {
+                    CompressedGuessResult::from_result(
+                        &get_result_for_guess(possible_word.as_ref(), word.as_ref()).results,
+                    )
+                });
+            *matching_results.entry(guess_result).or_insert(0) += 1;
         }
         matching_results.into_values().fold(0, |acc, num_matched| {
             let num_eliminated = self.possible_words.len() - num_matched;
@@ -414,7 +370,7 @@ impl WordScorer for MaxEliminationsScorer {
     }
 
     fn score_word(&mut self, word: &Rc<str>) -> i64 {
-        (self.compute_expected_eliminations(word.as_ref()) * 1000.0) as i64
+        (self.compute_expected_eliminations(word) * 1000.0) as i64
     }
 }
 

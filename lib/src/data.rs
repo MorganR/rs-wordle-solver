@@ -348,6 +348,72 @@ impl<'a> Clone for WordTracker<'a> {
     }
 }
 
+/// A compressed form of LetterResults. Can only store vectors of up to 10 results, else it panics.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct CompressedGuessResult {
+    data: u32,
+}
+
+impl CompressedGuessResult {
+    /// Creates a compressed form of the given letter results. Panics if `letter_results` is longer
+    /// than 10.
+    pub fn from_result(letter_results: &[LetterResult]) -> Self {
+        let mut data = 0;
+        let mut index = 0;
+        for letter in letter_results {
+            data |= 1
+                << (index
+                    + match letter {
+                        LetterResult::Correct => 0,
+                        LetterResult::PresentNotHere => 1,
+                        LetterResult::NotPresent => 2,
+                    });
+            index += 3;
+        }
+        Self { data: data }
+    }
+}
+
+/// Stores all the results for each objective<->guess pair.
+#[derive(Clone)]
+pub struct GuessResults {
+    results_by_objective_guess_pair: HashMap<(Rc<str>, Rc<str>), CompressedGuessResult>,
+}
+
+impl GuessResults {
+    /// Precomputes and stores all the results for each objective<->guess pair.
+    pub fn compute(all_words: &[Rc<str>]) -> Self {
+        let mut results_by_objective_guess_pair: HashMap<
+            (Rc<str>, Rc<str>),
+            CompressedGuessResult,
+        > = HashMap::new();
+        for objective in all_words {
+            for guess in all_words {
+                results_by_objective_guess_pair.insert(
+                    (objective.clone(), guess.clone()),
+                    CompressedGuessResult::from_result(
+                        &get_result_for_guess(objective, guess).results,
+                    ),
+                );
+            }
+        }
+        Self {
+            results_by_objective_guess_pair: results_by_objective_guess_pair,
+        }
+    }
+
+    /// Retrieves the result for the given objective<->guess pair.
+    pub fn get_result(
+        &self,
+        objective: &Rc<str>,
+        guess: &Rc<str>,
+    ) -> Option<CompressedGuessResult> {
+        self.results_by_objective_guess_pair
+            .get(&(objective.clone(), guess.clone()))
+            .map(|result| *result)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -551,6 +617,106 @@ mod tests {
             Vec::from_iter(all_words[2..3].iter())
         );
         assert_eq!(tracker.words_with_letter('z').count(), 0);
+    }
+
+    #[test]
+    fn compressed_guess_result_equality() {
+        let result_correct = CompressedGuessResult::from_result(&[LetterResult::Correct; 4]);
+        let result_not_here =
+            CompressedGuessResult::from_result(&[LetterResult::PresentNotHere; 4]);
+        let result_not_present = CompressedGuessResult::from_result(&[LetterResult::NotPresent; 4]);
+
+        assert_eq!(result_correct, result_correct);
+        assert_eq!(result_not_here, result_not_here);
+        assert_eq!(result_not_present, result_not_present);
+        assert!(result_correct != result_not_here);
+        assert!(result_correct != result_not_present);
+        assert!(result_not_here != result_not_present);
+    }
+
+    #[test]
+    fn guess_results_computes_for_all_words() {
+        let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
+        let results = GuessResults::compute(&all_words);
+
+        assert_eq!(
+            results.get_result(&all_words[0], &all_words[0]),
+            Some(CompressedGuessResult::from_result(
+                &[LetterResult::Correct; 5]
+            ))
+        );
+        assert_eq!(
+            results.get_result(&all_words[0], &all_words[1]),
+            Some(CompressedGuessResult::from_result(&[
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+                LetterResult::Correct,
+                LetterResult::Correct,
+                LetterResult::Correct,
+            ]))
+        );
+        assert_eq!(
+            results.get_result(&all_words[0], &all_words[2]),
+            Some(CompressedGuessResult::from_result(&[
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+            ]))
+        );
+        assert_eq!(
+            results.get_result(&all_words[1], &all_words[1]),
+            Some(CompressedGuessResult::from_result(
+                &[LetterResult::Correct; 5]
+            ))
+        );
+        assert_eq!(
+            results.get_result(&all_words[1], &all_words[0]),
+            Some(CompressedGuessResult::from_result(&[
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+                LetterResult::Correct,
+                LetterResult::Correct,
+                LetterResult::Correct,
+            ]))
+        );
+        assert_eq!(
+            results.get_result(&all_words[1], &all_words[2]),
+            Some(CompressedGuessResult::from_result(&[
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+            ]))
+        );
+        assert_eq!(
+            results.get_result(&all_words[2], &all_words[2]),
+            Some(CompressedGuessResult::from_result(
+                &[LetterResult::Correct; 5]
+            ))
+        );
+        assert_eq!(
+            results.get_result(&all_words[2], &all_words[0]),
+            Some(CompressedGuessResult::from_result(&[
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+            ]))
+        );
+        assert_eq!(
+            results.get_result(&all_words[2], &all_words[1]),
+            Some(CompressedGuessResult::from_result(&[
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+            ]))
+        );
     }
 }
 

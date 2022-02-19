@@ -35,6 +35,7 @@ enum GuesserImpl {
     LocatedLetters,
     ApproximateEliminations,
     MaxExpectedEliminations,
+    MaxEliminations,
 }
 
 impl std::str::FromStr for GuesserImpl {
@@ -46,7 +47,8 @@ impl std::str::FromStr for GuesserImpl {
             "unique_unguessed_letter" => Ok(GuesserImpl::UniqueUnguessedLetterFrequency),
             "located_letters" => Ok(GuesserImpl::LocatedLetters),
             "approx_eliminations" => Ok(GuesserImpl::ApproximateEliminations),
-            "max_eliminations" => Ok(GuesserImpl::MaxExpectedEliminations),
+            "max_eliminations_old" => Ok(GuesserImpl::MaxExpectedEliminations),
+            "max_eliminations" => Ok(GuesserImpl::MaxEliminations),
             _ => Err(String::from("Valid guesser implementations are: 'approx_eliminations', 'located_letters', 'random', 'unique_letter', and 'unique_unguessed_letter'."))
         }
     }
@@ -119,7 +121,8 @@ fn run_benchmark(word_bank: &WordBank, guesser_impl: GuesserImpl, guess_from: Gu
     let mut num_guesses_per_game: Vec<u32> = Vec::new();
     let word_counter = WordCounter::new(&word_bank.all_words());
     let word_tracker = WordTracker::new(&word_bank.all_words());
-    let max_eliminations_scorer = MaxExpectedEliminationsScorer::new(word_tracker);
+    let old_max_eliminations_scorer = MaxExpectedEliminationsScorer::new(word_tracker);
+    let max_eliminations_scorer = MaxEliminationsScorer::new(word_bank.all_words());
     for word in word_bank.all_words().iter() {
         let max_num_guesses = 128;
         let result = match guesser_impl {
@@ -168,12 +171,22 @@ fn run_benchmark(word_bank: &WordBank, guesser_impl: GuesserImpl, guess_from: Gu
                 MaxScoreGuesser::new(
                     guess_from.into(),
                     &word_bank,
+                    old_max_eliminations_scorer.clone(),
+                ),
+            ),
+            GuesserImpl::MaxEliminations => play_game_with_guesser(
+                word,
+                max_num_guesses,
+                MaxScoreGuesser::new(
+                    guess_from.into(),
+                    &word_bank,
                     max_eliminations_scorer.clone(),
                 ),
             ),
         };
         if let GameResult::Success(guesses) = result {
             num_guesses_per_game.push(guesses.len() as u32);
+            println!("Solved {}", word);
         } else {
             println!("Failed to guess word: {}. Error: {:?}", word, result);
             assert!(false);
@@ -276,6 +289,15 @@ fn play_single_game(
                 MaxExpectedEliminationsScorer::new(WordTracker::new(&word_bank.all_words())),
             ),
         ),
+        GuesserImpl::MaxEliminations => play_game_with_guesser(
+            word,
+            max_num_guesses,
+            MaxScoreGuesser::new(
+                guess_from.into(),
+                &word_bank,
+                MaxEliminationsScorer::new(word_bank.all_words()),
+            ),
+        ),
     };
     match result {
         GameResult::Success(guesses) => {
@@ -340,6 +362,11 @@ fn play_interactive_game(
                 MaxExpectedEliminationsScorer::new(WordTracker::new(&word_bank.all_words())),
             ))
         }
+        GuesserImpl::MaxEliminations => play_interactive_game_with_guesser(MaxScoreGuesser::new(
+            guess_from.into(),
+            &word_bank,
+            MaxEliminationsScorer::new(word_bank.all_words()),
+        )),
     }
 }
 
