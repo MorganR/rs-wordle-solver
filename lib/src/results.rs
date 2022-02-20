@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
-
 /// The result of a given letter at a specific location. There is some complexity here when a
 /// letter appears in a word more than once. See [`GuessResult`] for more details.
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
@@ -21,8 +18,9 @@ pub enum WordleError {
     NotFound,
     /// Indicates that the given `GuessResult`s are impossible due to some inconsistency.
     InvalidResults,
-    /// Indicates that one or more given characters are not in the supported set.
-    UnsupportedCharacter,
+    /// Indicates that a word had the wrong length (all words in a Wordle game must have the same
+    /// length).
+    WordWrongLength,
     /// Indicates that some kind of internal error has occurred.
     Internal,
 }
@@ -67,48 +65,106 @@ pub fn get_result_for_guess<'a>(objective: &str, guess: &'a str) -> GuessResult<
             objective, guess
         );
     }
-    let mut objective_letter_indices: HashMap<char, HashSet<usize>> = HashMap::new();
-    for (index, letter) in objective.char_indices() {
-        objective_letter_indices
-            .entry(letter)
-            .or_insert_with(HashSet::new)
-            .insert(index);
-    }
-    let mut guess_letter_indices: HashMap<char, HashSet<usize>> = HashMap::new();
-    for (index, letter) in guess.char_indices() {
-        guess_letter_indices
-            .entry(letter)
-            .or_insert_with(HashSet::new)
-            .insert(index);
-    }
-    GuessResult {
-        guess,
-        results: guess
-            .char_indices()
-            .map(|(index, letter)| {
-                if let Some(indices) = objective_letter_indices.get(&letter) {
-                    if indices.contains(&index) {
-                        return LetterResult::Correct;
-                    }
-                    let mut num_in_place = 0;
-                    let mut num_ahead_not_in_place = 0;
-                    let guess_indices = guess_letter_indices.get(&letter).unwrap();
-                    for guess_index in guess_indices.iter() {
-                        if indices.contains(guess_index) {
-                            num_in_place += 1;
-                        } else if *guess_index < index {
-                            num_ahead_not_in_place += 1;
-                        }
-                    }
-                    if indices.len() - num_in_place > num_ahead_not_in_place {
-                        LetterResult::PresentNotHere
-                    } else {
-                        LetterResult::NotPresent
-                    }
-                } else {
-                    LetterResult::NotPresent
+    let mut results = Vec::with_capacity(guess.len());
+    results.resize(guess.len(), LetterResult::NotPresent);
+    for (objective_index, objective_letter) in objective.char_indices() {
+        let mut set_index = None;
+        for (guess_index, guess_letter) in guess.char_indices() {
+            // Break if we're done and there is no chance of being correct.
+            if set_index.is_some() && guess_index > objective_index {
+                break;
+            }
+            // Continue if this letter doesn't match.
+            if guess_letter != objective_letter {
+                continue;
+            }
+            let existing_result = results[guess_index];
+            // This letter is correct.
+            if guess_index == objective_index {
+                results[guess_index] = LetterResult::Correct;
+                if set_index.is_some() {
+                    // Undo the previous set.
+                    results[set_index.unwrap()] = LetterResult::NotPresent;
+                    set_index = None;
                 }
-            })
-            .collect(),
+                // This result was previously unset and we're done with this letter.
+                if existing_result == LetterResult::NotPresent {
+                    break;
+                }
+                // This result was previously set to "LetterResult::PresentNotHere", so we need to
+                // forward that to the next matching letter.
+                continue;
+            }
+            // This result is already set to something, so skip.
+            if existing_result != LetterResult::NotPresent || set_index.is_some() {
+                continue;
+            }
+            // This result was previously unset and matches this letter.
+            results[guess_index] = LetterResult::PresentNotHere;
+            set_index = Some(guess_index);
+        }
+    }
+    GuessResult { guess, results }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_result_for_guess_correct() {
+        assert_eq!(
+            get_result_for_guess("abcb", "abcb"),
+            GuessResult {
+                guess: "abcb",
+                results: vec![LetterResult::Correct; 4]
+            }
+        );
+    }
+
+    #[test]
+    fn get_result_for_guess_partial() {
+        assert_eq!(
+            get_result_for_guess("mesas", "sassy"),
+            GuessResult {
+                guess: "sassy",
+                results: vec![
+                    LetterResult::PresentNotHere,
+                    LetterResult::PresentNotHere,
+                    LetterResult::Correct,
+                    LetterResult::NotPresent,
+                    LetterResult::NotPresent
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn get_result_for_guess_none() {
+        assert_eq!(
+            get_result_for_guess("abcb", "defg"),
+            GuessResult {
+                guess: "defg",
+                results: vec![LetterResult::NotPresent; 4],
+            }
+        );
+    }
+}
+
+#[cfg(all(feature = "unstable", test))]
+mod benches {
+    extern crate test;
+
+    use super::*;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_get_result_for_guess_correct(b: &mut Bencher) {
+        b.iter(|| get_result_for_guess("abcbd", "abcbd"))
+    }
+
+    #[bench]
+    fn bench_get_result_for_guess_partial(b: &mut Bencher) {
+        b.iter(|| get_result_for_guess("mesas", "sassy"))
     }
 }
