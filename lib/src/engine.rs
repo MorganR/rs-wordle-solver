@@ -3,6 +3,7 @@ use crate::restrictions::LetterRestriction;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::trie::*;
+use std::cmp::max;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -327,20 +328,40 @@ pub struct MaxEliminationsScorer<'a> {
     guess_results: GuessResults,
     restrictions: WordRestrictions,
     possible_words: WordTracker<'a>,
+    previous_expected_eliminations_per_word: HashMap<Rc<str>, f64>,
+    max_expected_eliminations: f64,
 }
 
 impl<'a> MaxEliminationsScorer<'a> {
     pub fn new(all_words_tracker: WordTracker<'a>) -> MaxEliminationsScorer {
         let guess_results = GuessResults::compute(all_words_tracker.all_words());
+        let mut expected_eliminations_per_word: HashMap<Rc<str>, f64> = HashMap::new();
+        let mut max_eliminations = 0.0;
+        for word in all_words_tracker.all_words() {
+            let expected_elimations =
+                compute_expected_eliminations(word, &guess_results, all_words_tracker.all_words());
+            if expected_elimations > max_eliminations {
+                max_eliminations = expected_elimations;
+            }
+            expected_eliminations_per_word.insert(Rc::clone(word), expected_elimations);
+        }
+        // Reduce max eliminations by 1 to ensure the score is returned for the best word.
+        // max_eliminations -= 1.0;
         MaxEliminationsScorer {
+            guess_results: guess_results,
             restrictions: WordRestrictions::new(all_words_tracker.max_word_length()),
             possible_words: all_words_tracker,
-            guess_results: guess_results,
+            previous_expected_eliminations_per_word: expected_eliminations_per_word,
+            max_expected_eliminations: max_eliminations,
         }
     }
 
-    fn can_skip(&self, word: &str) -> bool {
-        let mut can_skip = true;
+    fn can_skip(&self, word: &Rc<str>) -> bool {
+        if let Some(previous_expected_eliminations) =
+            self.previous_expected_eliminations_per_word.get(word)
+        {
+            return *previous_expected_eliminations < self.max_expected_eliminations;
+        }
         for (index, letter) in word.char_indices() {
             if self
                 .restrictions
@@ -351,32 +372,38 @@ impl<'a> MaxEliminationsScorer<'a> {
             if !self.possible_words.has_letter(letter) {
                 continue;
             }
-            can_skip = false;
-            break;
+            return false;
         }
-        can_skip
+        true
     }
 
     fn compute_expected_eliminations(&mut self, word: &Rc<str>) -> f64 {
-        let mut matching_results: HashMap<CompressedGuessResult, usize> = HashMap::new();
-        for possible_word in self.possible_words.all_words() {
-            let guess_result = self
-                .guess_results
-                .get_result(possible_word, word)
-                .unwrap_or_else(|| {
-                    CompressedGuessResult::from_result(
-                        &get_result_for_guess(possible_word.as_ref(), word.as_ref()).results,
-                    )
-                });
-            *matching_results.entry(guess_result).or_insert(0) += 1;
-        }
-        let num_possible_words = self.possible_words.all_words().len();
-        matching_results.into_values().fold(0, |acc, num_matched| {
-            let num_eliminated = num_possible_words - num_matched;
-            return acc + num_eliminated * num_matched;
-        }) as f64
-            / num_possible_words as f64
+        compute_expected_eliminations(word, &self.guess_results, self.possible_words.all_words())
     }
+}
+
+fn compute_expected_eliminations(
+    word: &Rc<str>,
+    guess_results: &GuessResults,
+    possible_words: &[Rc<str>],
+) -> f64 {
+    let mut matching_results: HashMap<CompressedGuessResult, usize> = HashMap::new();
+    for possible_word in possible_words {
+        let guess_result = guess_results
+            .get_result(possible_word, word)
+            .unwrap_or_else(|| {
+                CompressedGuessResult::from_result(
+                    &get_result_for_guess(possible_word.as_ref(), word.as_ref()).results,
+                )
+            });
+        *matching_results.entry(guess_result).or_insert(0) += 1;
+    }
+    let num_possible_words = possible_words.len();
+    matching_results.into_values().fold(0, |acc, num_matched| {
+        let num_eliminated = num_possible_words - num_matched;
+        return acc + num_eliminated * num_matched;
+    }) as f64
+        / num_possible_words as f64
 }
 
 impl<'a> WordScorer for MaxEliminationsScorer<'a> {
@@ -388,14 +415,21 @@ impl<'a> WordScorer for MaxEliminationsScorer<'a> {
     ) -> Result<(), WordleError> {
         self.possible_words = WordTracker::new(possible_words);
         self.restrictions = restrictions.clone();
+        self.max_expected_eliminations = 0.0;
         Ok(())
     }
 
     fn score_word(&mut self, word: &Rc<str>) -> i64 {
-        if self.can_skip(word.as_ref()) {
+        if self.can_skip(word) {
             return 0;
         }
-        (self.compute_expected_eliminations(word) * 1000.0) as i64
+        let expected_elimations = self.compute_expected_eliminations(word);
+        if expected_elimations > self.max_expected_eliminations {
+            self.max_expected_eliminations = expected_elimations;
+        }
+        self.previous_expected_eliminations_per_word
+            .insert(Rc::clone(word), expected_elimations);
+        return (expected_elimations * 1000.0) as i64;
     }
 }
 

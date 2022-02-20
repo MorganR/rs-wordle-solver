@@ -272,5 +272,5 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; fini
 ### MaxEliminationsScorer
 
 ```
-test bench_max_eliminations_scorer_precomputed_random_improved_words ... bench: 5,001,063,640 ns/iter (+/- 123,251,161)
+test bench_max_eliminations_scorer_precomputed_random_improved_words ... bench: 661,249,325 ns/iter (+/- 108,450,673)
 ```

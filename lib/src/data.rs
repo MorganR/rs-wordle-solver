@@ -869,7 +869,8 @@ mod benches {
 
     #[bench]
     fn bench_word_tracker_new(b: &mut Bencher) -> Result<()> {
-        let mut words_reader = BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+        let mut words_reader =
+            BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
         let bank = WordBank::from_reader(&mut words_reader)?;
 
         b.iter(|| WordTracker::new(&bank.all_words()));
