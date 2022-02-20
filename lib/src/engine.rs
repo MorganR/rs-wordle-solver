@@ -323,23 +323,43 @@ impl<'a> PossibleOutcomes<'a> {
 }
 
 #[derive(Clone)]
-pub struct MaxEliminationsScorer {
-    possible_words: Vec<Rc<str>>,
+pub struct MaxEliminationsScorer<'a> {
     guess_results: GuessResults,
+    restrictions: WordRestrictions,
+    possible_words: WordTracker<'a>,
 }
 
-impl MaxEliminationsScorer {
-    pub fn new(possible_words: Vec<Rc<str>>) -> MaxEliminationsScorer {
-        let guess_results = GuessResults::compute(&possible_words);
+impl<'a> MaxEliminationsScorer<'a> {
+    pub fn new(all_words_tracker: WordTracker<'a>) -> MaxEliminationsScorer {
+        let guess_results = GuessResults::compute(all_words_tracker.all_words());
         MaxEliminationsScorer {
-            possible_words: possible_words,
+            restrictions: WordRestrictions::new(all_words_tracker.max_word_length()),
+            possible_words: all_words_tracker,
             guess_results: guess_results,
         }
     }
 
+    fn can_skip(&self, word: &str) -> bool {
+        let mut can_skip = true;
+        for (index, letter) in word.char_indices() {
+            if self
+                .restrictions
+                .is_state_known(LocatedLetter::new(letter, index as u8))
+            {
+                continue;
+            }
+            if !self.possible_words.has_letter(letter) {
+                continue;
+            }
+            can_skip = false;
+            break;
+        }
+        can_skip
+    }
+
     fn compute_expected_eliminations(&mut self, word: &Rc<str>) -> f64 {
         let mut matching_results: HashMap<CompressedGuessResult, usize> = HashMap::new();
-        for possible_word in &self.possible_words {
+        for possible_word in self.possible_words.all_words() {
             let guess_result = self
                 .guess_results
                 .get_result(possible_word, word)
@@ -350,26 +370,31 @@ impl MaxEliminationsScorer {
                 });
             *matching_results.entry(guess_result).or_insert(0) += 1;
         }
+        let num_possible_words = self.possible_words.all_words().len();
         matching_results.into_values().fold(0, |acc, num_matched| {
-            let num_eliminated = self.possible_words.len() - num_matched;
+            let num_eliminated = num_possible_words - num_matched;
             return acc + num_eliminated * num_matched;
         }) as f64
-            / self.possible_words.len() as f64
+            / num_possible_words as f64
     }
 }
 
-impl WordScorer for MaxEliminationsScorer {
+impl<'a> WordScorer for MaxEliminationsScorer<'a> {
     fn update(
         &mut self,
         _latest_guess: &str,
-        _restrictions: &WordRestrictions,
+        restrictions: &WordRestrictions,
         possible_words: &Vec<Rc<str>>,
     ) -> Result<(), WordleError> {
-        self.possible_words = possible_words.clone();
+        self.possible_words = WordTracker::new(possible_words);
+        self.restrictions = restrictions.clone();
         Ok(())
     }
 
     fn score_word(&mut self, word: &Rc<str>) -> i64 {
+        if self.can_skip(word.as_ref()) {
+            return 0;
+        }
         (self.compute_expected_eliminations(word) * 1000.0) as i64
     }
 }
@@ -863,7 +888,8 @@ mod test {
     #[test]
     fn max_eliminations_scorer_score_word() {
         let possible_words: Vec<Rc<str>> = vec![Rc::from("cod"), Rc::from("wod"), Rc::from("mod")];
-        let mut scorer = MaxEliminationsScorer::new(possible_words.clone());
+        let tracker = WordTracker::new(&possible_words);
+        let mut scorer = MaxEliminationsScorer::new(tracker);
 
         assert_eq!(scorer.score_word(&possible_words[0]), 1333);
         assert_eq!(scorer.score_word(&Rc::from("mwc")), 2000);
@@ -879,7 +905,8 @@ mod test {
             Rc::from("zza"),
             Rc::from("zzz"),
         ];
-        let mut scorer = MaxEliminationsScorer::new(possible_words.clone());
+        let tracker = WordTracker::new(&possible_words);
+        let mut scorer = MaxEliminationsScorer::new(tracker);
 
         let restrictions = WordRestrictions::from_result(&GuessResult {
             guess: "zza",

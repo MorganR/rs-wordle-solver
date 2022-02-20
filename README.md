@@ -268,3 +268,9 @@ test bench_guess_random_wordle_words   ... bench:  10,573,207 ns/iter (+/- 2,574
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 6.23s
 ```
+
+### MaxEliminationsScorer
+
+```
+test bench_max_eliminations_scorer_precomputed_random_improved_words ... bench: 5,001,063,640 ns/iter (+/- 123,251,161)
+```

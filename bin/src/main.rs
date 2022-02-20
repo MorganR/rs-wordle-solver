@@ -121,8 +121,8 @@ fn run_benchmark(word_bank: &WordBank, guesser_impl: GuesserImpl, guess_from: Gu
     let mut num_guesses_per_game: Vec<u32> = Vec::new();
     let word_counter = WordCounter::new(&word_bank.all_words());
     let word_tracker = WordTracker::new(&word_bank.all_words());
-    let old_max_eliminations_scorer = MaxExpectedEliminationsScorer::new(word_tracker);
-    let max_eliminations_scorer = MaxEliminationsScorer::new(word_bank.all_words());
+    let old_max_eliminations_scorer = MaxExpectedEliminationsScorer::new(word_tracker.clone());
+    let max_eliminations_scorer = MaxEliminationsScorer::new(word_tracker);
     for word in word_bank.all_words().iter() {
         let max_num_guesses = 128;
         let result = match guesser_impl {
@@ -295,7 +295,7 @@ fn play_single_game(
             MaxScoreGuesser::new(
                 guess_from.into(),
                 &word_bank,
-                MaxEliminationsScorer::new(word_bank.all_words()),
+                MaxEliminationsScorer::new(WordTracker::new(&word_bank.all_words())),
             ),
         ),
     };
@@ -365,7 +365,7 @@ fn play_interactive_game(
         GuesserImpl::MaxEliminations => play_interactive_game_with_guesser(MaxScoreGuesser::new(
             guess_from.into(),
             &word_bank,
-            MaxEliminationsScorer::new(word_bank.all_words()),
+            MaxEliminationsScorer::new(WordTracker::new(&word_bank.all_words())),
         )),
     }
 }
