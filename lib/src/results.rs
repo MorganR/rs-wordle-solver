@@ -51,18 +51,18 @@ pub fn get_result_for_guess<'a>(objective: &str, guess: &'a str) -> GuessResult<
     for (index, letter) in objective.char_indices() {
         objective_letter_indices
             .entry(letter)
-            .or_insert(HashSet::new())
+            .or_insert_with(HashSet::new)
             .insert(index);
     }
     let mut guess_letter_indices: HashMap<char, HashSet<usize>> = HashMap::new();
     for (index, letter) in guess.char_indices() {
         guess_letter_indices
             .entry(letter)
-            .or_insert(HashSet::new())
+            .or_insert_with(HashSet::new)
             .insert(index);
     }
     GuessResult {
-        guess: guess,
+        guess,
         results: guess
             .char_indices()
             .map(|(index, letter)| {
@@ -81,12 +81,12 @@ pub fn get_result_for_guess<'a>(objective: &str, guess: &'a str) -> GuessResult<
                         }
                     }
                     if indices.len() - num_in_place > num_ahead_not_in_place {
-                        return LetterResult::PresentNotHere;
+                        LetterResult::PresentNotHere
                     } else {
-                        return LetterResult::NotPresent;
+                        LetterResult::NotPresent
                     }
                 } else {
-                    return LetterResult::NotPresent;
+                    LetterResult::NotPresent
                 }
             })
             .collect(),

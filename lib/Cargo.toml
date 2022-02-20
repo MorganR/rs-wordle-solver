@@ -16,5 +16,4 @@ version = "0.1.0"
 unstable = []
 
 [dependencies]
-radix_trie = "0.2.1"
 rand = "0.8.4"

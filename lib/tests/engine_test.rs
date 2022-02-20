@@ -65,8 +65,7 @@ fn play_game_with_known_word() {
 #[test]
 fn play_game_with_guesser_with_unknown_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let tracker = WordTracker::new(&bank.all_words());
-    let scorer = MaxExpectedEliminationsScorer::new(tracker);
+    let scorer = MaxEliminationsScorer::new(bank.all_words());
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     assert_eq!(
@@ -78,8 +77,7 @@ fn play_game_with_guesser_with_unknown_word() {
 #[test]
 fn play_game_with_guesser_with_known_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let tracker = WordTracker::new(&bank.all_words());
-    let scorer = MaxExpectedEliminationsScorer::new(tracker);
+    let scorer = MaxEliminationsScorer::new(bank.all_words());
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     if let GameResult::Success(guesses) = play_game_with_guesser("abcz", 10, guesser) {

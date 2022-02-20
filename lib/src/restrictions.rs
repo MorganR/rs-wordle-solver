@@ -182,12 +182,9 @@ impl PresentLetter {
             count_to_update = &mut self.num_not_here;
         }
         for state in &mut self.located_state {
-            match state {
-                LocatedLetterState::Unknown => {
-                    *state = new_state;
-                    *count_to_update += 1;
-                }
-                _ => {}
+            if *state == LocatedLetterState::Unknown {
+                *state = new_state;
+                *count_to_update += 1;
             }
         }
     }
@@ -219,7 +216,7 @@ impl WordRestrictions {
     /// Creates a `WordRestrictions` object for the given word length with all letters unknown.
     pub fn new(word_length: u8) -> WordRestrictions {
         WordRestrictions {
-            word_length: word_length,
+            word_length,
             present_letters: HashMap::with_capacity(min(word_length as usize, 26)),
             not_present_letters: HashSet::new(),
         }
@@ -274,7 +271,7 @@ impl WordRestrictions {
                 .and_modify(|known_presence| {
                     result = known_presence.merge(presence);
                 })
-                .or_insert(presence.clone());
+                .or_insert_with(|| presence.clone());
             result?;
         }
         Ok(())
@@ -331,7 +328,7 @@ impl WordRestrictions {
         if self.not_present_letters.contains(&ll.letter) {
             return Some(LetterRestriction::NotPresent);
         }
-        return None;
+        None
     }
 
     fn set_letter_here(
@@ -343,7 +340,7 @@ impl WordRestrictions {
         let presence = self
             .present_letters
             .entry(letter)
-            .or_insert(PresentLetter::new(self.word_length));
+            .or_insert_with(|| PresentLetter::new(self.word_length));
         presence.set_must_be_at(location)?;
         let num_times_present = WordRestrictions::count_num_times_in_guess(letter, result);
         // Remove from the not present letters if it was present. This could happen if the guess
@@ -369,7 +366,7 @@ impl WordRestrictions {
         let presence = self
             .present_letters
             .entry(letter)
-            .or_insert(PresentLetter::new(self.word_length));
+            .or_insert_with(|| PresentLetter::new(self.word_length));
         presence.set_must_not_be_at(location)?;
         let num_times_present = WordRestrictions::count_num_times_in_guess(letter, result);
         // Remove from the not present letters if it was present. This could happen if the guess

@@ -193,6 +193,25 @@ These per-letter expectations are then summed together to get the expectation va
 
 **Average number of guesses:** 3.85 +/- 0.72
 
+### MaxEliminationsScorer
+
+This probabilistically calculates the expectation value for how many words will be eliminated by 
+each guess, and chooses the word that eliminates the most other guesses. This is extremely expensive
+to compute, so it precomputes as much as possible when the scorer is first created. On my machine, 
+constructing the scorer takes about 25 seconds, but this enables each subsequent game to be played 
+in about 650ms.
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|53|
+|3|1426|
+|4|2635|
+|5|468|
+|6|19|
+
+**Average number of guesses:** 3.78 +/- 0.65
+
 ## Speed Benchmark
 
 ### RandomGuesser
@@ -249,28 +268,20 @@ test bench_guess_random_wordle_words   ... bench:  10,532,152 ns/iter (+/- 2,592
 test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 6.48s
 ```
 
-### ScoreLocatedLettersGuesser
+### LocatedLettersScorer
 
 ```
-running 2 tests
-test bench_guess_random_improved_words ... bench:   3,542,067 ns/iter (+/- 803,738)
-test bench_guess_random_wordle_words   ... bench:  10,692,953 ns/iter (+/- 3,955,187)
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 6.56s
+test bench_located_letters_random_improved_words                     ... bench:   2,481,878 ns/iter (+/- 490,544)
 ```
 
-### MostExpectedEliminationsGuesser
+### MaxApproxiamteEliminationsScorer
 
 ```
-running 2 tests
-test bench_guess_random_improved_words ... bench:   3,352,427 ns/iter (+/- 569,059)
-test bench_guess_random_wordle_words   ... bench:  10,573,207 ns/iter (+/- 2,574,954)
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 6.23s
+test bench_max_approximate_eliminations_random_improved_words       ... bench:   2,388,279 ns/iter (+/- 411,674)
 ```
 
 ### MaxEliminationsScorer
 
 ```
-test bench_max_eliminations_scorer_precomputed_random_improved_words ... bench: 661,249,325 ns/iter (+/- 108,450,673)
+test bench_max_eliminations_scorer_precomputed_random_improved_words ... bench: 651,427,776 ns/iter (+/- 104,224,772)
 ```

@@ -4,7 +4,6 @@ mod data;
 mod engine;
 mod restrictions;
 mod results;
-mod trie;
 
 pub use data::WordBank;
 pub use data::WordCounter;
