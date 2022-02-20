@@ -294,14 +294,15 @@ impl CompressedGuessResult {
     }
 }
 
-/// Stores all the results for each objective<->guess pair.
+/// Precomputes and stores all the results for each objective<->guess pair.
 #[derive(Clone)]
-pub struct GuessResults {
+pub struct PrecomputedGuessResults {
     results_by_objective_guess_pair: HashMap<(Rc<str>, Rc<str>), CompressedGuessResult>,
 }
 
-impl GuessResults {
+impl PrecomputedGuessResults {
     /// Precomputes and stores all the results for each objective<->guess pair.
+    /// This is an expensive operation.
     pub fn compute(all_words: &[Rc<str>]) -> Self {
         let mut results_by_objective_guess_pair: HashMap<
             (Rc<str>, Rc<str>),
@@ -317,7 +318,7 @@ impl GuessResults {
                 );
             }
         }
-        Self {
+        PrecomputedGuessResults {
             results_by_objective_guess_pair,
         }
     }
@@ -497,7 +498,7 @@ mod tests {
     #[test]
     fn guess_results_computes_for_all_words() {
         let all_words = rc_string_vec(vec!["hello", "hallo", "worda"]);
-        let results = GuessResults::compute(&all_words);
+        let results = PrecomputedGuessResults::compute(&all_words);
 
         assert_eq!(
             results.get_result(&all_words[0], &all_words[0]),
@@ -632,6 +633,35 @@ mod benches {
         let tracker = WordTracker::new(&*bank);
 
         b.iter(|| tracker.clone());
+
+        Ok(())
+    }
+
+    #[bench]
+    fn bench_precomputed_guess_results_compute_10(b: &mut Bencher) {
+        let words: Vec<Rc<str>> = vec![
+            "hello".into(),
+            "world".into(),
+            "whoot".into(),
+            "fizzy".into(),
+            "donut".into(),
+            "dough".into(),
+            "plays".into(),
+            "stays".into(),
+            "wheat".into(),
+            "flips".into(),
+        ];
+
+        b.iter(|| PrecomputedGuessResults::compute(&words));
+    }
+
+    #[bench]
+    fn bench_precomputed_guess_results_compute_100(b: &mut Bencher) -> Result<()> {
+        let mut words_reader =
+            BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+        let bank = WordBank::from_reader(&mut words_reader)?;
+
+        b.iter(|| PrecomputedGuessResults::compute(&bank[0..100]));
 
         Ok(())
     }

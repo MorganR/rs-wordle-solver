@@ -118,7 +118,7 @@ fn run_benchmark(word_bank: &WordBank, guesser_impl: GuesserImpl, guess_from: Gu
     let mut second_guess_count: HashMap<Box<str>, u32> = HashMap::new();
     let mut third_guess_count: HashMap<Box<str>, u32> = HashMap::new();
     let word_counter = WordCounter::new(word_bank);
-    let max_eliminations_scorer = MaxEliminationsScorer::new(word_bank.to_vec());
+    let max_eliminations_scorer = MaxEliminationsScorer::new(word_bank);
     for word in word_bank.iter() {
         let max_num_guesses = 128;
         let result = match guesser_impl {
@@ -283,7 +283,7 @@ fn play_single_game(
             MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxEliminationsScorer::new(word_bank.to_vec()),
+                MaxEliminationsScorer::new(word_bank),
             ),
         ),
     };
@@ -339,7 +339,7 @@ fn play_interactive_game(
         GuesserImpl::MaxEliminations => play_interactive_game_with_guesser(MaxScoreGuesser::new(
             guess_from.into(),
             word_bank,
-            MaxEliminationsScorer::new(word_bank.to_vec()),
+            MaxEliminationsScorer::new(word_bank),
         )),
     }
 }

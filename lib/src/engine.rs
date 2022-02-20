@@ -551,7 +551,7 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// each guess, and chooses the word that eliminates the most other guesses.
 ///
 /// This is a highly effective scoring strategy, but also extremely expensive to compute. On my
-/// machine, constructing the scorer for about 4600 words takes about 25 seconds, but each
+/// machine, constructing the scorer for about 4600 words takes about 9 seconds, but each
 /// subsequent game can be played in about 650ms if the scorer is then cloned before each game.
 ///
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
@@ -578,7 +578,7 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// Guess from AllUnguessedWords: 3.78 +/- 0.65
 #[derive(Clone)]
 pub struct MaxEliminationsScorer {
-    guess_results: GuessResults,
+    guess_results: PrecomputedGuessResults,
     possible_words: Vec<Rc<str>>,
     previous_expected_eliminations_per_word: HashMap<Rc<str>, f64>,
     max_expected_eliminations: f64,
@@ -607,7 +607,7 @@ impl MaxEliminationsScorer {
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
     pub fn new(all_words: &[Rc<str>]) -> MaxEliminationsScorer {
-        let guess_results = GuessResults::compute(&all_words);
+        let guess_results = PrecomputedGuessResults::compute(&all_words);
         let mut expected_eliminations_per_word: HashMap<Rc<str>, f64> = HashMap::new();
         let mut max_eliminations = 0.0;
         for word in all_words {
@@ -639,7 +639,7 @@ impl MaxEliminationsScorer {
 
 fn compute_expected_eliminations(
     word: &Rc<str>,
-    guess_results: &GuessResults,
+    guess_results: &PrecomputedGuessResults,
     possible_words: &[Rc<str>],
 ) -> f64 {
     let mut matching_results: HashMap<CompressedGuessResult, usize> = HashMap::new();

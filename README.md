@@ -198,7 +198,7 @@ and therefore less effective, than using the precise counts computed by `MaxElim
 This probabilistically calculates the expectation value for how many words will be eliminated by 
 each guess, and chooses the word that eliminates the most other guesses. This is extremely expensive
 to compute, so it precomputes as much as possible when the scorer is first created. On my machine, 
-constructing the scorer takes about 25 seconds, but this enables each subsequent game to be played 
+constructing the scorer takes about 9 seconds, but this enables each subsequent game to be played 
 in about 650ms.
 
 **GuessFrom::PossibleWords**
@@ -237,49 +237,30 @@ in about 650ms.
 ### RandomGuesser
 
 ```
-running 2 tests
-test bench_guess_random_improved_words ... bench:     103,927 ns/iter (+/- 9,880)
-test bench_guess_random_wordle_words   ... bench:     289,432 ns/iter (+/- 33,253)
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 9.15s
+test bench_guess_random_improved_words ... bench:      97,871 ns/iter (+/- 7,004)
+test bench_guess_random_wordle_words   ... bench:     271,783 ns/iter (+/- 26,410)
 ```
 
 ### MaxUniqueLetterFrequencyScorer
 
-**GuessFrom::PossibleWords**
-
 ```
-running 2 tests
-test bench_guess_random_improved_words ... bench:   1,838,435 ns/iter (+/- 79,831)
-test bench_guess_random_wordle_words   ... bench:   5,257,480 ns/iter (+/- 217,477)
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 8.59s
-```
-
-**GuessFrom::AllUnguessedWords**
-
-```
-running 2 tests
-test bench_guess_random_improved_words ... bench:   3,598,302 ns/iter (+/- 719,643)
-test bench_guess_random_wordle_words   ... bench:  10,532,152 ns/iter (+/- 2,592,960)
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 6.48s
+test bench_unique_letters_improved_words ... bench:   1,124,631 ns/iter (+/- 152,674)
 ```
 
 ### LocatedLettersScorer
 
 ```
-test bench_located_letters_random_improved_words                     ... bench:   2,481,878 ns/iter (+/- 490,544)
+test bench_located_letters_improved_words ... bench:   2,139,709 ns/iter (+/- 399,150)
 ```
 
-### MaxApproxiamteEliminationsScorer
+### MaxApproximateEliminationsScorer
 
 ```
-test bench_max_approximate_eliminations_random_improved_words       ... bench:   2,388,279 ns/iter (+/- 411,674)
+test bench_max_approximate_eliminations_random_improved_words ... bench:   2,215,908 ns/iter (+/- 379,109)
 ```
 
 ### MaxEliminationsScorer
 
 ```
-test bench_max_eliminations_scorer_precomputed_random_improved_words ... bench: 651,427,776 ns/iter (+/- 104,224,772)
+test bench_max_eliminations_scorer_precomputed_random_improved_words ... bench: 655,816,300 ns/iter (+/- 107,276,732)
 ```
