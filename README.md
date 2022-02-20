@@ -48,50 +48,7 @@ One sample benchmark:
 ### MaxUniqueLetterFrequencyScorer
 
 This is a fairly naive selector. It selects the word that maximizes the sum of the frequency of
-unique letters in the possible words.
-
-**GuessFrom::PossibleWords**
-
-|Num guesses|Num games|
-|-----------|---------|
-|1|1|
-|2|137|
-|3|1264|
-|4|1831|
-|5|829|
-|6|321|
-|7|129|
-|8|57|
-|9|26|
-|10|6|
-|11|1|
-
-**Average number of guesses:** 4.16 +/- 1.22
-
-**GuessFrom::AllUnguessedWords**
-
-|Num guesses|Num games|
-|-----------|---------|
-|1|1|
-|2|93|
-|3|1056|
-|4|1896|
-|5|969|
-|6|338|
-|7|151|
-|8|66|
-|9|23|
-|10|4|
-|11|1|
-|12|3|
-|13|1|
-
-**Average number of guesses:** 4.28 +/- 1.22
-
-### MaxUniqueUnguessedLetterFrequencyScorer
-
-This selects the word that maximizes the sum of the frequency of unique letters that have not yet
-been guessed.
+unique letters that have not yet been guessed.
 
 **GuessFrom::PossibleWords**
 
@@ -148,6 +105,27 @@ For each letter, score:
 
       * 1 point for every possible word with this letter in the same place.
 
+**GuessFrom::PossibleWords**
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|180|
+|3|1442|
+|4|1838|
+|5|722|
+|6|259|
+|7|101|
+|8|41|
+|9|13|
+|10|3|
+|11|1|
+|12|1|
+
+**Average number of guesses:** 4.00 +/- 1.15
+
+**GuessFrom::AllUnguessedWords**
+
 |Num guesses|Num games|
 |-----------|---------|
 |1|1|
@@ -165,9 +143,8 @@ For each letter, score:
 
 ### MaxApproximateEliminationsScorer
 
-This selects the word that is expected to eliminate the most other words. The expected number of
-eliminations is computed approximately. For each letter, expected number of eliminations is
-computed for each possible state:
+This selects the word that is expected to eliminate approximately the most other words.
+For each letter, the expected number of eliminations is computed for each possible state:
 
 * *{expected number of eliminated words if in state}* * *{fraction of possible words matching this state}*
 
@@ -180,6 +157,29 @@ for the letter `c` in `could`:
   *has already been checked at another location)*.
 
 These per-letter expectations are then summed together to get the expectation value for the word.
+Approximating the expected eliminations in this way is cheap to compute, but slightly less accurate,
+and therefore less effective, than using the precise counts computed by `MaxEliminationsScorer`.
+
+**GuessFrom::PossibleWords**
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|180|
+|3|1415|
+|4|1843|
+|5|734|
+|6|262|
+|7|104|
+|8|41|
+|9|14|
+|10|6|
+|11|1|
+|12|1|
+
+**Average number of guesses:** 4.02 +/- 1.16
+
+**GuessFrom::AllUnguessedWords**
 
 |Num guesses|Num games|
 |-----------|---------|
@@ -200,6 +200,26 @@ each guess, and chooses the word that eliminates the most other guesses. This is
 to compute, so it precomputes as much as possible when the scorer is first created. On my machine, 
 constructing the scorer takes about 25 seconds, but this enables each subsequent game to be played 
 in about 650ms.
+
+**GuessFrom::PossibleWords**
+
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|180|
+|3|1452|
+|4|1942|
+|5|666|
+|6|220|
+|7|93|
+|8|33|
+|9|10|
+|10|4|
+|11|1|
+
+**Average number of guesses:** 3.95 +/- 1.10
+
+**GuessFrom::AllUnguessedWords**
 
 |Num guesses|Num games|
 |-----------|---------|
@@ -224,29 +244,7 @@ test bench_guess_random_wordle_words   ... bench:     289,432 ns/iter (+/- 33,25
 test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 9.15s
 ```
 
-### MaxUniqueLetterFrequencyScorer - 
-
-**GuessFrom::PossibleWords**
-
-```
-running 2 tests
-test bench_guess_random_improved_words ... bench:   1,874,060 ns/iter (+/- 102,103)
-test bench_guess_random_wordle_words   ... bench:   5,359,493 ns/iter (+/- 256,125)
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 8.79s
-```
-
-**GuessFrom::AllUnguessedWords**
-
-```
-running 2 tests
-test bench_guess_random_improved_words ... bench:   3,727,482 ns/iter (+/- 1,167,432)
-test bench_guess_random_wordle_words   ... bench:  12,523,837 ns/iter (+/- 6,333,476)
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured; 0 filtered out; finished in 7.25s
-```
-
-### MaxUniqueUnguessedLetterFrequencyScorer
+### MaxUniqueLetterFrequencyScorer
 
 **GuessFrom::PossibleWords**
 

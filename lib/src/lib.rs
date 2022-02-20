@@ -9,4 +9,6 @@ pub use data::WordBank;
 pub use data::WordCounter;
 pub use data::WordTracker;
 pub use engine::*;
+pub use restrictions::LetterRestriction;
+pub use restrictions::WordRestrictions;
 pub use results::*;

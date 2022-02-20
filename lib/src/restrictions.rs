@@ -10,6 +10,7 @@ use std::iter::zip;
 use std::result::Result;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// Indicates if a letter is known to be in a given location or not.
 enum LocatedLetterState {
     Unknown,
     Here,
@@ -19,7 +20,7 @@ enum LocatedLetterState {
 /// Indicates information about a letter that is in the word.
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct PresentLetter {
-    /// The letter must appear exactly this many times in the word.
+    /// If known, the letter must appear exactly this many times in the word.
     maybe_required_count: Option<u8>,
     /// The minimum number of times this letter must appear in the word.
     min_count: u8,
@@ -27,7 +28,7 @@ struct PresentLetter {
     num_here: u8,
     /// The number of locations we know the letter must not appear.
     num_not_here: u8,
-    /// The status of the letter at these locations.
+    /// The status of the letter at each location in the word.
     located_state: Vec<LocatedLetterState>,
 }
 
@@ -60,6 +61,12 @@ impl PresentLetter {
     }
 
     /// Sets that this letter must be at the given index.
+    ///
+    /// If the required count for this letter is known, then this may fill any remaining `Unknown`
+    /// locations with either `Here` or `NotHere` accordingly.
+    ///
+    /// This returns a [`WordleError::InvalidResults`] error if this letter is already known not to
+    /// be at the given index.
     pub fn set_must_be_at(&mut self, index: usize) -> Result<(), WordleError> {
         let previous = self.located_state[index];
         match previous {
@@ -90,6 +97,12 @@ impl PresentLetter {
     }
 
     /// Sets that this letter must not be at the given index.
+    ///
+    /// If setting this leaves only as many `Here` and `Unknown` locations as the value of
+    /// `min_count`, then this sets the `Unknown` locations to `Here`.
+    ///
+    /// This returns a [`WordleError::InvalidResults`] error if this letter is already known to be
+    /// at the given index.
     pub fn set_must_not_be_at(&mut self, index: usize) -> Result<(), WordleError> {
         let previous = self.located_state[index];
         match previous {
@@ -111,6 +124,9 @@ impl PresentLetter {
     }
 
     /// Sets the maximum number of times this letter can appear in the word.
+    ///
+    /// Returns a [`WordleError::InvalidResults`] error if the required count is already set to a
+    /// different value, or if the `min_count` is known to be higher than the provided value.
     pub fn set_required_count(&mut self, count: u8) -> Result<(), WordleError> {
         if let Some(existing_count) = self.maybe_required_count {
             if existing_count != count {
@@ -136,8 +152,11 @@ impl PresentLetter {
         Ok(())
     }
 
-    /// If count is higher than the current min count, this bumps it and modifies the known data as
-    /// needed.
+    /// If count is higher than the current min count, this bumps it up to the provided value and
+    /// modifies the known data as needed.
+    ///
+    /// Returns a [`WorldError::InvalidResults`] error if it would be impossible for `count`
+    /// locations to be marked `Here` given what is already known about the word.
     pub fn possibly_bump_min_count(&mut self, count: u8) -> Result<(), WordleError> {
         if self.min_count >= count {
             return Ok(());
@@ -156,6 +175,8 @@ impl PresentLetter {
     }
 
     /// Merges the information known in the other object into this one.
+    ///
+    /// Returns a [`WordleError::InvalidResults`] error if they contain incompatible information.
     pub fn merge(&mut self, other: &PresentLetter) -> Result<(), WordleError> {
         if let Some(count) = other.maybe_required_count {
             self.set_required_count(count)?;
@@ -197,14 +218,22 @@ impl PresentLetter {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// Indicates the known restrictions that apply to a letter at a given location.
 pub enum LetterRestriction {
+    /// The letter goes here.
     Here,
+    /// The letter is in the word and might be here.
     PresentMaybeHere,
+    /// The letter is in the word but not here.
     PresentNotHere,
+    /// The letter is not in the word.
     NotPresent,
 }
 
-/// Defines letter restrictions that a word must adhere to.
+/// Defines letter restrictions that a word must adhere to, such as "the first letter of the word
+/// must be 'a'".
+///
+/// Restrictions are derived from [`GuessResult`]s.
 #[derive(PartialEq, Clone)]
 pub struct WordRestrictions {
     word_length: u8,
@@ -223,13 +252,16 @@ impl WordRestrictions {
     }
 
     /// Returns the restrictions imposed by the given result.
-    pub fn from_result(result: &GuessResult) -> Result<WordRestrictions, WordleError> {
+    pub fn from_result(result: &GuessResult) -> WordRestrictions {
         let mut restrictions = WordRestrictions::new(result.guess.len() as u8);
-        restrictions.update(result)?;
-        Ok(restrictions)
+        restrictions.update(result).unwrap();
+        restrictions
     }
 
-    /// Adds restrictions arising from the given guess result.
+    /// Adds restrictions arising from the given result.
+    ///
+    /// Returns a [`WordleError::InvalidResults`] error if the result is incompatible with the
+    /// existing restrictions.
     pub fn update(&mut self, guess_result: &GuessResult) -> Result<(), WordleError> {
         for ((index, letter), result) in zip(
             guess_result.guess.char_indices(),
@@ -251,6 +283,8 @@ impl WordRestrictions {
     }
 
     /// Adds the given restrictions to this restriction.
+    ///
+    /// Returns a [`WordleError::InvalidResults`] error if the results are incompatible.
     pub fn merge(&mut self, other: &WordRestrictions) -> Result<(), WordleError> {
         if self.word_length != other.word_length {
             return Err(WordleError::InvalidResults);
@@ -302,6 +336,7 @@ impl WordRestrictions {
                 .all(|letter| !self.not_present_letters.contains(&letter))
     }
 
+    /// Returns true iff the exact state of the given letter at the given location is already known.
     pub fn is_state_known(&self, ll: LocatedLetter) -> bool {
         if let Some(presence) = self.present_letters.get(&ll.letter) {
             return presence.state(ll.location as usize) != LocatedLetterState::Unknown;

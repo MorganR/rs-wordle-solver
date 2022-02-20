@@ -5,8 +5,7 @@ use wordle_solver::*;
 #[test]
 fn calculate_best_guess_no_words() {
     let bank = create_word_bank(vec![]);
-    let all_words = bank.all_words();
-    let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
+    let scorer = MaxUniqueLetterFrequencyScorer::new(WordCounter::new(&bank));
     let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     assert_eq!(guesser.select_next_guess(), None);
@@ -15,8 +14,7 @@ fn calculate_best_guess_no_words() {
 #[test]
 fn calculate_best_guess_chooses_best_word() {
     let bank = create_word_bank(vec!["abcz", "wxyz", "defy", "ghix"]);
-    let all_words = bank.all_words();
-    let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
+    let scorer = MaxUniqueLetterFrequencyScorer::new(WordCounter::new(&bank));
     let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     assert_eq!(guesser.select_next_guess(), Some(Rc::from("wxyz")));
@@ -25,8 +23,7 @@ fn calculate_best_guess_chooses_best_word() {
 #[test]
 fn update_guess_result_modifies_next_guess() -> Result<(), WordleError> {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let all_words = bank.all_words();
-    let scorer = MaxUniqueLetterFrequencyScorer::new(&all_words);
+    let scorer = MaxUniqueLetterFrequencyScorer::new(WordCounter::new(&bank));
     let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     guesser.update(&GuessResult {
@@ -46,15 +43,20 @@ fn update_guess_result_modifies_next_guess() -> Result<(), WordleError> {
 #[test]
 fn play_game_with_unknown_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
+    let guesser = RandomGuesser::new(&bank);
 
-    assert_eq!(play_game("nope", 10, &bank), GameResult::UnknownWord);
+    assert_eq!(
+        play_game_with_guesser("nope", 10, guesser),
+        GameResult::UnknownWord
+    );
 }
 
 #[test]
 fn play_game_with_known_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
+    let guesser = RandomGuesser::new(&bank);
 
-    if let GameResult::Success(guesses) = play_game("abcz", 10, &bank) {
+    if let GameResult::Success(guesses) = play_game_with_guesser("abcz", 10, guesser) {
         assert!(guesses.len() < 10);
         assert_eq!(guesses.iter().last(), Some(&Box::from("abcz")));
     } else {
@@ -65,7 +67,7 @@ fn play_game_with_known_word() {
 #[test]
 fn play_game_with_guesser_with_unknown_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let scorer = MaxEliminationsScorer::new(bank.all_words());
+    let scorer = MaxEliminationsScorer::new(&bank);
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     assert_eq!(
@@ -77,7 +79,7 @@ fn play_game_with_guesser_with_unknown_word() {
 #[test]
 fn play_game_with_guesser_with_known_word() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let scorer = MaxEliminationsScorer::new(bank.all_words());
+    let scorer = MaxEliminationsScorer::new(&bank);
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     if let GameResult::Success(guesses) = play_game_with_guesser("abcz", 10, guesser) {
@@ -91,7 +93,7 @@ fn play_game_with_guesser_with_known_word() {
 #[test]
 fn play_game_takes_too_many_guesses() {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"]);
-    let scorer = MaxUniqueLetterFrequencyScorer::new(&bank.all_words());
+    let scorer = MaxUniqueLetterFrequencyScorer::new(WordCounter::new(&bank));
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     if let GameResult::Failure(guesses) = play_game_with_guesser("abcz", 1, guesser) {

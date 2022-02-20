@@ -1,11 +1,16 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-/// The result of a given letter at a specific location.
+/// The result of a given letter at a specific location. There is some complexity here when a
+/// letter appears in a word more than once. See [`GuessResult`] for more details.
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub enum LetterResult {
+    /// This letter goes exactly here in the objective word.
     Correct,
+    /// This letter is in the objective word, but not here.
     PresentNotHere,
+    /// This letter is not in the objective word, or is only in the word as many times as it was
+    /// marked either `PresentNotHere` or `Correct`.
     NotPresent,
 }
 
@@ -18,11 +23,26 @@ pub enum WordleError {
     InvalidResults,
     /// Indicates that one or more given characters are not in the supported set.
     UnsupportedCharacter,
+    /// Indicates that some kind of internal error has occurred.
+    Internal,
 }
 
 /// The result of a single word guess.
+///
+/// There is some complexity here when the guess has duplicate letters. Duplicate letters are
+/// matched to [`LetterResult`]s as follows:
+///
+/// 1. All letters in the correct location are marked `Correct`.
+/// 2. For any remaining letters, if the objective word has more letters than were marked correct,
+///    then these letters are marked as `PresentNotHere` starting from the beginning of the word,
+///    until all letters have been accounted for.
+/// 3. Any remaining letters are marked as `NotPresent`.
+///
+/// For example, if the guess was "sassy" for the objective word "mesas", then the results would
+/// be: `[PresentNotHere, PresentNotHere, Correct, NotPresent, NotPresent]`.
 #[derive(Debug, PartialEq)]
 pub struct GuessResult<'a> {
+    /// The guess that was made.
     pub guess: &'a str,
     /// The result of each letter, provided in the same leter order as in the guess.
     pub results: Vec<LetterResult>,
@@ -35,7 +55,7 @@ pub enum GameResult {
     Success(Vec<Box<str>>),
     /// Indicates that the guesser failed to guess the word, and provides the guesses that were given.
     Failure(Vec<Box<str>>),
-    /// Indicates that the given word was not in the word bank.
+    /// Indicates that the given word was not in the guesser's word bank.
     UnknownWord,
 }
 

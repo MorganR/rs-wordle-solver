@@ -5,6 +5,7 @@ use std::hash::Hash;
 use std::io::BufRead;
 use std::io::Result;
 use std::marker::PhantomData;
+use std::ops::Deref;
 use std::rc::Rc;
 
 /// A letter along with its location in the word.
@@ -76,11 +77,6 @@ impl WordBank {
         }
     }
 
-    /// Retrieves the full list of available words.
-    pub fn all_words(&self) -> Vec<Rc<str>> {
-        self.all_words.iter().map(Rc::clone).collect()
-    }
-
     /// Returns the number of possible words.
     pub fn len(&self) -> usize {
         self.all_words.len()
@@ -94,6 +90,15 @@ impl WordBank {
     /// Returns the length of the longest word in the bank.
     pub fn max_word_len(&self) -> usize {
         self.max_word_length
+    }
+}
+
+impl Deref for WordBank {
+    type Target = [Rc<str>];
+
+    /// Derefs the list of words in the `WordBank` as a slice.
+    fn deref(&self) -> &Self::Target {
+        &self.all_words
     }
 }
 
@@ -132,26 +137,6 @@ impl WordCounter {
         }
     }
 
-    /// Removes the given word from the counter.
-    pub fn remove(&mut self, word: &str) {
-        self.num_words -= 1;
-        for (index, letter) in word.char_indices() {
-            self.num_words_by_ll
-                .entry(LocatedLetter::new(letter, index as u8))
-                .and_modify(|num_words| *num_words -= 1);
-            if index == 0
-                || word
-                    .chars()
-                    .take(index)
-                    .all(|other_letter| other_letter != letter)
-            {
-                self.num_words_by_letter
-                    .entry(letter)
-                    .and_modify(|num_words| *num_words -= 1);
-            }
-        }
-    }
-
     /// Retrieves the count of words with the given letter at the given location.
     pub fn num_words_with_located_letter(&self, ll: &LocatedLetter) -> u32 {
         *self.num_words_by_ll.get(ll).unwrap_or(&0)
@@ -168,16 +153,22 @@ impl WordCounter {
     }
 }
 
+/// Computes the unique set of words that have each letter, and that have a letter in a given
+/// location.
+///
+/// This could be useful for creating your own Wordle-solving algorithms.
 pub struct WordTracker<'a> {
     empty_list: Vec<Rc<str>>,
     all_words: Vec<Rc<str>>,
     words_by_letter: HashMap<char, Vec<Rc<str>>>,
     words_by_located_letter: HashMap<LocatedLetter, Vec<Rc<str>>>,
-    max_word_length: u8,
     phantom: PhantomData<&'a Rc<str>>,
 }
 
 impl<'a> WordTracker<'a> {
+    /// Constructs a new `WordTracker` from the given words. Note that the words are not checked
+    /// for uniqueness, so if duplicates exist in the given words, then those duplicates will
+    /// remain part of this tracker's information.
     pub fn new<'b, I>(words: I) -> WordTracker<'a>
     where
         I: IntoIterator<Item = &'b Rc<str>>,
@@ -185,9 +176,7 @@ impl<'a> WordTracker<'a> {
         let all_words: Vec<Rc<str>> = words.into_iter().map(Rc::clone).collect();
         let mut words_by_letter: HashMap<char, Vec<Rc<str>>> = HashMap::new();
         let mut words_by_located_letter: HashMap<LocatedLetter, Vec<Rc<str>>> = HashMap::new();
-        let mut max_word_length = 0;
         for word in all_words.iter() {
-            max_word_length = max(max_word_length, word.len());
             for (index, letter) in word.as_ref().char_indices() {
                 words_by_located_letter
                     .entry(LocatedLetter::new(letter, index as u8))
@@ -211,23 +200,21 @@ impl<'a> WordTracker<'a> {
             all_words,
             words_by_letter,
             words_by_located_letter,
-            max_word_length: max_word_length as u8,
             phantom: PhantomData,
         }
     }
 
+    /// Retrieves the full list of words stored in this word tracker.
     pub fn all_words(&self) -> &[Rc<str>] {
         &self.all_words
     }
 
-    pub fn max_word_length(&self) -> u8 {
-        self.max_word_length
-    }
-
+    /// Returns true iff any of the words in this tracker contain the given letter.
     pub fn has_letter(&self, letter: char) -> bool {
         self.words_by_letter.contains_key(&letter)
     }
 
+    /// Returns an [`Iterator`] over words that have the given letter at the given location.
     pub fn words_with_located_letter(&self, ll: &LocatedLetter) -> impl Iterator<Item = &Rc<str>> {
         self.words_by_located_letter
             .get(ll)
@@ -235,6 +222,7 @@ impl<'a> WordTracker<'a> {
             .unwrap_or_else(|| self.empty_list.iter())
     }
 
+    /// Returns an [`Iterator`] over words that have the given letter.
     pub fn words_with_letter(&self, letter: char) -> impl Iterator<Item = &Rc<str>> {
         self.words_by_letter
             .get(&letter)
@@ -242,6 +230,7 @@ impl<'a> WordTracker<'a> {
             .unwrap_or_else(|| self.empty_list.iter())
     }
 
+    /// Returns an [`Iterator`] over words that don't have the given letter at the given location.
     pub fn words_with_letter_not_here<'b>(
         &'a self,
         ll: &'b LocatedLetter,
@@ -258,6 +247,7 @@ impl<'a> WordTracker<'a> {
             .filter(|&word| word.chars().nth(ll.location as usize).unwrap() != ll.letter)
     }
 
+    /// Returns an [`Iterator`] over words that don't have the given letter.
     pub fn words_without_letter<'b>(&'a self, letter: &'b char) -> impl Iterator<Item = &'b Rc<str>>
     where
         'a: 'b,
@@ -273,7 +263,6 @@ impl<'a> Clone for WordTracker<'a> {
             all_words: self.all_words.clone(),
             words_by_located_letter: self.words_by_located_letter.clone(),
             words_by_letter: self.words_by_letter.clone(),
-            max_word_length: self.max_word_length,
             phantom: PhantomData,
         }
     }
@@ -425,38 +414,6 @@ mod tests {
 
         // Missing letters:
         assert_eq!(counter.num_words_with_letter('z'), 0);
-    }
-
-    #[test]
-    fn word_counter_remove() {
-        let mut counter = WordCounter::new(&rc_string_vec(vec!["hello", "hallo", "worda"]));
-
-        counter.remove("hallo");
-
-        assert_eq!(
-            counter.num_words_with_located_letter(&LocatedLetter::new('h', 0)),
-            1
-        );
-        assert_eq!(
-            counter.num_words_with_located_letter(&LocatedLetter::new('a', 1)),
-            0
-        );
-        assert_eq!(
-            counter.num_words_with_located_letter(&LocatedLetter::new('l', 2)),
-            1
-        );
-        assert_eq!(
-            counter.num_words_with_located_letter(&LocatedLetter::new('l', 3)),
-            1
-        );
-        assert_eq!(
-            counter.num_words_with_located_letter(&LocatedLetter::new('o', 4)),
-            1
-        );
-        assert_eq!(counter.num_words_with_letter('h'), 1);
-        assert_eq!(counter.num_words_with_letter('l'), 1);
-        assert_eq!(counter.num_words_with_letter('o'), 2);
-        assert_eq!(counter.num_words_with_letter('a'), 1);
     }
 
     fn rc_string_vec(vec_str: Vec<&'static str>) -> Vec<Rc<str>> {
@@ -634,12 +591,47 @@ mod benches {
     use test::Bencher;
 
     #[bench]
+    fn bench_word_counter_new(b: &mut Bencher) -> Result<()> {
+        let mut words_reader =
+            BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+        let bank = WordBank::from_reader(&mut words_reader)?;
+
+        b.iter(|| WordCounter::new(&bank));
+
+        Ok(())
+    }
+
+    #[bench]
+    fn bench_word_counter_clone(b: &mut Bencher) -> Result<()> {
+        let mut words_reader =
+            BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+        let bank = WordBank::from_reader(&mut words_reader)?;
+        let counter = WordCounter::new(&bank);
+
+        b.iter(|| counter.clone());
+
+        Ok(())
+    }
+
+    #[bench]
     fn bench_word_tracker_new(b: &mut Bencher) -> Result<()> {
         let mut words_reader =
             BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
         let bank = WordBank::from_reader(&mut words_reader)?;
 
-        b.iter(|| WordTracker::new(&bank.all_words()));
+        b.iter(|| WordTracker::new(&*bank));
+
+        Ok(())
+    }
+
+    #[bench]
+    fn bench_word_tracker_clone(b: &mut Bencher) -> Result<()> {
+        let mut words_reader =
+            BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+        let bank = WordBank::from_reader(&mut words_reader)?;
+        let tracker = WordTracker::new(&*bank);
+
+        b.iter(|| tracker.clone());
 
         Ok(())
     }
