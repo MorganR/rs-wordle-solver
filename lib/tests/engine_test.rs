@@ -377,5 +377,5 @@ mod max_eliminations_scorer {
 }
 
 fn create_word_bank(words: Vec<&str>) -> Result<WordBank, WordleError> {
-    WordBank::from_vec(words.iter().map(|word| word.to_string()).collect())
+    WordBank::from_iterator(words)
 }

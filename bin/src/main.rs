@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
+use std::result::Result;
 use std::time::Instant;
 use wordle_solver::*;
 
@@ -86,7 +87,7 @@ enum Command {
     Interactive,
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start_time = Instant::now();
     let args = Args::parse();
     println!("File: {}", args.words_file);
@@ -96,9 +97,9 @@ fn main() -> io::Result<()> {
     println!("There are {} possible words.", word_bank.len());
 
     match args.command {
-        Command::Benchmark => run_benchmark(&word_bank, args.guesser_impl, args.guess_from),
+        Command::Benchmark => run_benchmark(&word_bank, args.guesser_impl, args.guess_from)?,
         Command::Single { word } => {
-            play_single_game(&word, &word_bank, args.guesser_impl, args.guess_from)
+            play_single_game(&word, &word_bank, args.guesser_impl, args.guess_from)?
         }
         Command::Interactive => {
             play_interactive_game(&word_bank, args.guesser_impl, args.guess_from)?
@@ -113,12 +114,16 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn run_benchmark(word_bank: &WordBank, guesser_impl: GuesserImpl, guess_from: GuessFrom) {
+fn run_benchmark(
+    word_bank: &WordBank,
+    guesser_impl: GuesserImpl,
+    guess_from: GuessFrom,
+) -> Result<(), WordleError> {
     let mut num_guesses_per_game: Vec<u32> = Vec::new();
     let mut second_guess_count: HashMap<Box<str>, u32> = HashMap::new();
     let mut third_guess_count: HashMap<Box<str>, u32> = HashMap::new();
     let word_counter = WordCounter::new(word_bank);
-    let max_eliminations_scorer = MaxEliminationsScorer::new(word_bank);
+    let max_eliminations_scorer = MaxEliminationsScorer::new(word_bank)?;
     for word in word_bank.iter() {
         let max_num_guesses = 128;
         let result = match guesser_impl {
@@ -216,6 +221,8 @@ fn run_benchmark(word_bank: &WordBank, guesser_impl: GuesserImpl, guess_from: Gu
         "\n**Average number of guesses:** {:.2} +/- {:.2}",
         average, std_dev
     );
+
+    Ok(())
 }
 
 fn print_top_n(guess_count: HashMap<Box<str>, u32>, n: usize) {
@@ -244,7 +251,7 @@ fn play_single_game(
     word_bank: &WordBank,
     guesser_impl: GuesserImpl,
     guess_from: GuessFrom,
-) {
+) -> Result<(), WordleError> {
     let max_num_guesses = 128;
     let result = match guesser_impl {
         GuesserImpl::Random => {
@@ -283,7 +290,7 @@ fn play_single_game(
             MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxEliminationsScorer::new(word_bank),
+                MaxEliminationsScorer::new(word_bank)?,
             ),
         ),
     };
@@ -308,13 +315,14 @@ fn play_single_game(
             std::process::exit(1);
         }
     }
+    Ok(())
 }
 
 fn play_interactive_game(
     word_bank: &WordBank,
     guesser_impl: GuesserImpl,
     guess_from: GuessFrom,
-) -> io::Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
     match guesser_impl {
         GuesserImpl::Random => play_interactive_game_with_guesser(RandomGuesser::new(word_bank)),
         GuesserImpl::UniqueLetterFrequency => {
@@ -339,9 +347,10 @@ fn play_interactive_game(
         GuesserImpl::MaxEliminations => play_interactive_game_with_guesser(MaxScoreGuesser::new(
             guess_from.into(),
             word_bank,
-            MaxEliminationsScorer::new(word_bank),
+            MaxEliminationsScorer::new(word_bank)?,
         )),
     }
+    .map_err(Box::from)
 }
 
 fn play_interactive_game_with_guesser(mut guesser: impl Guesser) -> io::Result<()> {

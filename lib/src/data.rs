@@ -90,30 +90,6 @@ impl WordBank {
         })
     }
 
-    // TODO: remove this.
-    pub fn from_vec(words: Vec<String>) -> Result<Self, WordleError> {
-        let mut word_length = 0;
-        Ok(WordBank {
-            all_words: words
-                .iter()
-                .filter_map(|word| {
-                    let normalized: Rc<str> = Rc::from(word.trim().to_lowercase().as_str());
-                    let this_word_length = normalized.len();
-                    if this_word_length == 0 {
-                        return None;
-                    }
-                    if word_length == 0 {
-                        word_length = this_word_length;
-                    } else if word_length != this_word_length {
-                        return Some(Err(WordleError::WordLength(word_length)));
-                    }
-                    Some(Ok(normalized))
-                })
-                .collect::<Result<Vec<Rc<str>>, WordleError>>()?,
-            word_length,
-        })
-    }
-
     /// Constructs a new `WordBank` struct using the words from the given vector. Each word will be
     /// trimmed and converted to lower case.
     ///
@@ -135,7 +111,7 @@ impl WordBank {
     where
         S: AsRef<str>,
     {
-        WordBank::from_iter_private(words.iter())
+        WordBank::from_iterator(words.iter())
     }
 
     /// Constructs a new `WordBank` struct using the words from the given vector. Each word will be
@@ -150,12 +126,12 @@ impl WordBank {
     /// # use wordle_solver::WordleError;
     ///
     /// let words = vec!["abc".to_string(), "DEF ".to_string()];
-    /// let word_bank = WordBank::from_iter(words.iter())?;
+    /// let word_bank = WordBank::from_iterator(words.iter())?;
     ///
     /// assert_eq!(&word_bank as &[Rc<str>], &[Rc::from("abc"), Rc::from("def")]);
     /// # Ok::<(), WordleError>(())
     /// ```
-    pub fn from_iter<S>(words: impl Iterator<Item = S>) -> Result<Self, WordleError>
+    pub fn from_iterator<S>(words: impl IntoIterator<Item = S>) -> Result<Self, WordleError>
     where
         S: AsRef<str>,
     {

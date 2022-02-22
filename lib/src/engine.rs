@@ -28,8 +28,7 @@ pub trait Guesser {
 /// use wordle_solver::WordBank;
 /// use wordle_solver::play_game_with_guesser;
 ///
-/// let bank = WordBank::from_vec(
-///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
+/// let bank = WordBank::from_slice(&["abc", "def", "ghi"]).unwrap();
 /// let mut guesser = RandomGuesser::new(&bank);
 /// let result = play_game_with_guesser("def", 4, guesser.clone());
 ///
@@ -84,7 +83,7 @@ impl RandomGuesser {
     /// use wordle_solver::RandomGuesser;
     /// use wordle_solver::WordBank;
     ///
-    /// let bank = WordBank::from_vec(vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
+    /// let bank = WordBank::from_slice(&["abc", "def", "ghi"]).unwrap();
     /// let guesser = RandomGuesser::new(&bank);
     /// ```
     pub fn new(bank: &WordBank) -> RandomGuesser {
@@ -188,8 +187,7 @@ where
     /// use wordle_solver::MaxScoreGuesser;
     /// use wordle_solver::WordBank;
     ///
-    /// let bank = WordBank::from_vec(
-    ///     vec!["azz".into(), "bzz".into(), "czz".into(), "abc".into()]).unwrap();
+    /// let bank = WordBank::from_slice(&["azz", "bzz", "czz", "abc"]).unwrap();
     /// let scorer = MaxEliminationsScorer::new(&bank).unwrap();
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
     ///
@@ -299,8 +297,7 @@ impl MaxUniqueLetterFrequencyScorer {
     /// use wordle_solver::WordBank;
     /// use wordle_solver::WordCounter;
     ///
-    /// let bank = WordBank::from_vec(
-    ///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
+    /// let bank = WordBank::from_slice(&["abc", "def", "ghi"]).unwrap();
     /// let mut guesser = MaxScoreGuesser::new(
     ///     GuessFrom::AllUnguessedWords,
     ///     &bank,
@@ -407,8 +404,7 @@ impl LocatedLettersScorer {
     /// use wordle_solver::WordBank;
     /// use wordle_solver::WordCounter;
     ///
-    /// let bank = WordBank::from_vec(
-    ///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
+    /// let bank = WordBank::from_slice(&["abc", "def", "ghi"]).unwrap();
     /// let scorer = LocatedLettersScorer::new(&bank, WordCounter::new(&bank));
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer.clone());
     ///
@@ -526,8 +522,7 @@ impl MaxApproximateEliminationsScorer {
     /// use wordle_solver::WordBank;
     /// use wordle_solver::WordCounter;
     ///
-    /// let bank = WordBank::from_vec(
-    ///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
+    /// let bank = WordBank::from_slice(&["abc", "def", "ghi"]).unwrap();
     /// let scorer = MaxApproximateEliminationsScorer::new(WordCounter::new(&bank));
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
     ///
@@ -647,8 +642,7 @@ impl MaxEliminationsScorer {
     /// use wordle_solver::MaxScoreGuesser;
     /// use wordle_solver::WordBank;
     ///
-    /// let bank = WordBank::from_vec(
-    ///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
+    /// let bank = WordBank::from_slice(&["abc", "def", "ghi"]).unwrap();
     /// let scorer = MaxEliminationsScorer::new(&bank).unwrap();
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
     ///

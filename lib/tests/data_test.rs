@@ -33,13 +33,43 @@ fn word_bank_from_reader_succeeds() -> Result<(), WordleError> {
 }
 
 #[test]
-fn word_bank_from_vec_succeeds() -> Result<(), WordleError> {
-    let words: Vec<String> = vec![
-        String::from(""),
-        String::from("worda"),
-        String::from("wordb"),
-    ];
-    let word_bank = WordBank::from_vec(words)?;
+fn word_bank_from_slice_succeeds() -> Result<(), WordleError> {
+    let word_bank = WordBank::from_slice(&["", "worda", "Wordb "])?;
+
+    assert_eq!(word_bank.len(), 2);
+    assert_rc_eq!(&word_bank, &["worda", "wordb"]);
+    assert_eq!(word_bank.word_length(), 5);
+    Ok(())
+}
+
+#[test]
+fn word_bank_from_string_slice_succeeds() -> Result<(), WordleError> {
+    let word_bank =
+        WordBank::from_slice(&["".to_string(), "worda".to_string(), "Wordb ".to_string()])?;
+
+    assert_eq!(word_bank.len(), 2);
+    assert_rc_eq!(&word_bank, &["worda", "wordb"]);
+    assert_eq!(word_bank.word_length(), 5);
+    Ok(())
+}
+
+#[test]
+fn word_bank_from_iterator_succeeds() -> Result<(), WordleError> {
+    let word_bank = WordBank::from_iterator(vec!["", "worda", "Wordb "])?;
+
+    assert_eq!(word_bank.len(), 2);
+    assert_rc_eq!(&word_bank, &["worda", "wordb"]);
+    assert_eq!(word_bank.word_length(), 5);
+    Ok(())
+}
+
+#[test]
+fn word_bank_from_string_iterator_succeeds() -> Result<(), WordleError> {
+    let word_bank = WordBank::from_iterator(vec![
+        "".to_string(),
+        "worda".to_string(),
+        "Wordb ".to_string(),
+    ])?;
 
     assert_eq!(word_bank.len(), 2);
     assert_rc_eq!(&word_bank, &["worda", "wordb"]);

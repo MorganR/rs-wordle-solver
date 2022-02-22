@@ -2,6 +2,7 @@
 
 extern crate test;
 
+use wordle_solver::details::*;
 use wordle_solver::*;
 
 use std::fs::File;
