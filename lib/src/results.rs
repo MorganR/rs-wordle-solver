@@ -1,3 +1,6 @@
+use std::error::Error;
+use std::fmt;
+
 /// The result of a given letter at a specific location. There is some complexity here when a
 /// letter appears in a word more than once. See [`GuessResult`] for more details.
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
@@ -12,17 +15,40 @@ pub enum LetterResult {
 }
 
 /// Indicates that an error occurred while trying to guess the objective word.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug)]
 pub enum WordleError {
-    /// Indicates that the objective word must not be in the word bank.
-    NotFound,
+    /// Indicates that the word lengths differed, or words were too long for the chosen
+    /// implementation. The expected word length or max possible word length is provided.
+    WordLength(usize),
     /// Indicates that the given `GuessResult`s are impossible due to some inconsistency.
     InvalidResults,
-    /// Indicates that a word had the wrong length (all words in a Wordle game must have the same
-    /// length).
-    WordWrongLength,
-    /// Indicates that some kind of internal error has occurred.
-    Internal,
+    /// An IO error occurred.
+    IoError(std::io::Error),
+}
+
+impl fmt::Display for WordleError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            WordleError::WordLength(expected_length) => write!(f, "{:?}: All words and guesses in a Wordle game must have the same length, and must be less than the max word length. Max/expected word length: {}", self, expected_length),
+            WordleError::InvalidResults => write!(f, "{:?}: Provided GuessResults led to an impossible set of WordRestrictions.", self),
+            WordleError::IoError(io_err) => write!(f, "{:?}: IO error: {}", self, io_err),
+        }
+    }
+}
+
+impl Error for WordleError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            WordleError::IoError(io_err) => io_err.source(),
+            _ => None,
+        }
+    }
+}
+
+impl From<std::io::Error> for WordleError {
+    fn from(io_err: std::io::Error) -> Self {
+        WordleError::IoError(io_err)
+    }
 }
 
 /// The result of a single word guess.
@@ -51,19 +77,47 @@ pub struct GuessResult<'a> {
 pub enum GameResult {
     /// Indicates that the guesser won the game, and provides the guesses that were given.
     Success(Vec<Box<str>>),
-    /// Indicates that the guesser failed to guess the word, and provides the guesses that were given.
+    /// Indicates that the guesser failed to guess the word under the guess limit, and provides the
+    /// guesses that were given.
     Failure(Vec<Box<str>>),
     /// Indicates that the given word was not in the guesser's word bank.
     UnknownWord,
 }
 
 /// Determines the result of the given `guess` when applied to the given `objective`.
-pub fn get_result_for_guess<'a>(objective: &str, guess: &'a str) -> GuessResult<'a> {
+///
+/// ```
+/// use wordle_solver::get_result_for_guess;
+/// use wordle_solver::GuessResult;
+/// use wordle_solver::LetterResult;
+///
+/// let result = get_result_for_guess("mesas", "sassy");
+/// assert!(
+///     matches!(
+///         result,
+///         Ok(GuessResult {
+///             guess: "sassy",
+///             results: _
+///         })
+///     )
+/// );
+/// assert_eq!(
+///     result.unwrap().results,
+///     vec![
+///         LetterResult::PresentNotHere,
+///         LetterResult::PresentNotHere,
+///         LetterResult::Correct,
+///         LetterResult::NotPresent,
+///         LetterResult::NotPresent
+///     ]
+/// );
+/// ```
+pub fn get_result_for_guess<'a>(
+    objective: &str,
+    guess: &'a str,
+) -> Result<GuessResult<'a>, WordleError> {
     if objective.len() != guess.len() {
-        panic!(
-            "Objective ({}) must have the same length as the guess ({})",
-            objective, guess
-        );
+        return Err(WordleError::WordLength(objective.len()));
     }
     let mut results = Vec::with_capacity(guess.len());
     results.resize(guess.len(), LetterResult::NotPresent);
@@ -104,67 +158,5 @@ pub fn get_result_for_guess<'a>(objective: &str, guess: &'a str) -> GuessResult<
             set_index = Some(guess_index);
         }
     }
-    GuessResult { guess, results }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn get_result_for_guess_correct() {
-        assert_eq!(
-            get_result_for_guess("abcb", "abcb"),
-            GuessResult {
-                guess: "abcb",
-                results: vec![LetterResult::Correct; 4]
-            }
-        );
-    }
-
-    #[test]
-    fn get_result_for_guess_partial() {
-        assert_eq!(
-            get_result_for_guess("mesas", "sassy"),
-            GuessResult {
-                guess: "sassy",
-                results: vec![
-                    LetterResult::PresentNotHere,
-                    LetterResult::PresentNotHere,
-                    LetterResult::Correct,
-                    LetterResult::NotPresent,
-                    LetterResult::NotPresent
-                ]
-            }
-        );
-    }
-
-    #[test]
-    fn get_result_for_guess_none() {
-        assert_eq!(
-            get_result_for_guess("abcb", "defg"),
-            GuessResult {
-                guess: "defg",
-                results: vec![LetterResult::NotPresent; 4],
-            }
-        );
-    }
-}
-
-#[cfg(all(feature = "unstable", test))]
-mod benches {
-    extern crate test;
-
-    use super::*;
-    use test::Bencher;
-
-    #[bench]
-    fn bench_get_result_for_guess_correct(b: &mut Bencher) {
-        b.iter(|| get_result_for_guess("abcbd", "abcbd"))
-    }
-
-    #[bench]
-    fn bench_get_result_for_guess_partial(b: &mut Bencher) {
-        b.iter(|| get_result_for_guess("mesas", "sassy"))
-    }
+    Ok(GuessResult { guess, results })
 }

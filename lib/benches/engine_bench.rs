@@ -2,21 +2,23 @@
 
 extern crate test;
 
-use std::fs::File;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::Result;
-use test::Bencher;
 use wordle_solver::*;
 
+use std::error::Error;
+use std::fs::File;
+use std::io;
+use std::io::BufRead;
+use std::result::Result;
+use test::Bencher;
+
 #[bench]
-fn bench_guess_random_wordle_words(b: &mut Bencher) -> Result<()> {
-    let test_words = BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
-    let mut all_words = BufReader::new(File::open("../data/wordle-words.txt")?);
+fn bench_guess_random_wordle_words(b: &mut Bencher) -> Result<(), WordleError> {
+    let test_words = io::BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
+    let mut all_words = io::BufReader::new(File::open("../data/wordle-words.txt")?);
 
     let bank = WordBank::from_reader(&mut all_words)?;
 
-    let test_words: Vec<String> = test_words.lines().collect::<Result<Vec<String>>>()?;
+    let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
 
     b.iter(|| {
@@ -28,13 +30,13 @@ fn bench_guess_random_wordle_words(b: &mut Bencher) -> Result<()> {
 }
 
 #[bench]
-fn bench_guess_random_improved_words(b: &mut Bencher) -> Result<()> {
-    let test_words = BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = BufReader::new(File::open("../data/improved-words.txt")?);
+fn bench_guess_random_improved_words(b: &mut Bencher) -> Result<(), WordleError> {
+    let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
     let bank = WordBank::from_reader(&mut all_words)?;
 
-    let test_words: Vec<String> = test_words.lines().collect::<Result<Vec<String>>>()?;
+    let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
 
     b.iter(|| {
@@ -46,14 +48,14 @@ fn bench_guess_random_improved_words(b: &mut Bencher) -> Result<()> {
 }
 
 #[bench]
-fn bench_unique_letters_improved_words(b: &mut Bencher) -> Result<()> {
-    let test_words = BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = BufReader::new(File::open("../data/improved-words.txt")?);
+fn bench_unique_letters_improved_words(b: &mut Bencher) -> Result<(), WordleError> {
+    let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
     let bank = WordBank::from_reader(&mut all_words)?;
     let scorer = MaxUniqueLetterFrequencyScorer::new(WordCounter::new(&bank));
 
-    let test_words: Vec<String> = test_words.lines().collect::<Result<Vec<String>>>()?;
+    let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
 
     b.iter(|| {
@@ -66,14 +68,14 @@ fn bench_unique_letters_improved_words(b: &mut Bencher) -> Result<()> {
 }
 
 #[bench]
-fn bench_located_letters_improved_words(b: &mut Bencher) -> Result<()> {
-    let test_words = BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = BufReader::new(File::open("../data/improved-words.txt")?);
+fn bench_located_letters_improved_words(b: &mut Bencher) -> Result<(), WordleError> {
+    let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
     let bank = WordBank::from_reader(&mut all_words)?;
     let scorer = LocatedLettersScorer::new(&bank, WordCounter::new(&bank));
 
-    let test_words: Vec<String> = test_words.lines().collect::<Result<Vec<String>>>()?;
+    let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
 
     b.iter(|| {
@@ -86,14 +88,16 @@ fn bench_located_letters_improved_words(b: &mut Bencher) -> Result<()> {
 }
 
 #[bench]
-fn bench_max_approximate_eliminations_random_improved_words(b: &mut Bencher) -> Result<()> {
-    let test_words = BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = BufReader::new(File::open("../data/improved-words.txt")?);
+fn bench_max_approximate_eliminations_random_improved_words(
+    b: &mut Bencher,
+) -> Result<(), WordleError> {
+    let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
     let bank = WordBank::from_reader(&mut all_words)?;
     let scorer = MaxApproximateEliminationsScorer::new(WordCounter::new(&bank));
 
-    let test_words: Vec<String> = test_words.lines().collect::<Result<Vec<String>>>()?;
+    let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
 
     b.iter(|| {
@@ -106,14 +110,16 @@ fn bench_max_approximate_eliminations_random_improved_words(b: &mut Bencher) -> 
 }
 
 #[bench]
-fn bench_max_eliminations_scorer_precomputed_random_improved_words(b: &mut Bencher) -> Result<()> {
-    let test_words = BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = BufReader::new(File::open("../data/improved-words.txt")?);
+fn bench_max_eliminations_scorer_precomputed_random_improved_words(
+    b: &mut Bencher,
+) -> std::result::Result<(), Box<dyn Error>> {
+    let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
     let bank = WordBank::from_reader(&mut all_words)?;
-    let scorer = MaxEliminationsScorer::new(&bank);
+    let scorer = MaxEliminationsScorer::new(&bank)?;
 
-    let test_words: Vec<String> = test_words.lines().collect::<Result<Vec<String>>>()?;
+    let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
 
     b.iter(|| {

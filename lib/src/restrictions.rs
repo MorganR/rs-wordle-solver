@@ -219,6 +219,8 @@ impl PresentLetter {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 /// Indicates the known restrictions that apply to a letter at a given location.
+///
+/// See [`WordRestrictions`].
 pub enum LetterRestriction {
     /// The letter goes here.
     Here,
@@ -350,8 +352,8 @@ impl WordRestrictions {
     ///  * `Some`:
     ///     * `NotPresent` -> The letter is not in the word.
     ///     * `PresentNotHere` -> The letter is present but not here.
-    ///     * `Here` -> The letter goes here.
     ///     * `PresentMaybeHere` -> The letter is present, but we don't know if it's here or not.
+    ///     * `Here` -> The letter goes here.
     pub fn state(&self, ll: &LocatedLetter) -> Option<LetterRestriction> {
         if let Some(presence) = self.present_letters.get(&ll.letter) {
             return match presence.state(ll.location as usize) {
@@ -601,10 +603,10 @@ mod tests {
 
         letter.set_must_be_at(0)?;
         letter.set_must_be_at(1)?;
-        assert_eq!(
+        assert!(matches!(
             letter.set_required_count(1),
             Err(WordleError::InvalidResults)
-        );
+        ));
         Ok(())
     }
 
@@ -614,10 +616,10 @@ mod tests {
 
         letter.set_must_not_be_at(0)?;
         letter.set_must_not_be_at(1)?;
-        assert_eq!(
+        assert!(matches!(
             letter.set_required_count(2),
             Err(WordleError::InvalidResults)
-        );
+        ));
         Ok(())
     }
 
@@ -626,7 +628,10 @@ mod tests {
         let mut letter = PresentLetter::new(3);
 
         letter.set_must_not_be_at(0)?;
-        assert_eq!(letter.set_must_be_at(0), Err(WordleError::InvalidResults));
+        assert!(matches!(
+            letter.set_must_be_at(0),
+            Err(WordleError::InvalidResults)
+        ));
         Ok(())
     }
 
@@ -635,10 +640,10 @@ mod tests {
         let mut letter = PresentLetter::new(3);
 
         letter.set_must_be_at(0)?;
-        assert_eq!(
+        assert!(matches!(
             letter.set_must_not_be_at(0),
             Err(WordleError::InvalidResults)
-        );
+        ));
         Ok(())
     }
 
@@ -784,10 +789,10 @@ mod tests {
         let mut restrictions = WordRestrictions::new(4);
         let other_restrictions = WordRestrictions::new(5);
 
-        assert_eq!(
+        assert!(matches!(
             restrictions.merge(&other_restrictions),
-            Err(WordleError::InvalidResults),
-        );
+            Err(WordleError::InvalidResults)
+        ));
     }
 
     #[test]
@@ -813,10 +818,10 @@ mod tests {
             ],
         })?;
 
-        assert_eq!(
+        assert!(matches!(
             restrictions.merge(&other_restrictions),
             Err(WordleError::InvalidResults)
-        );
+        ));
         Ok(())
     }
 
@@ -843,10 +848,10 @@ mod tests {
             ],
         })?;
 
-        assert_eq!(
+        assert!(matches!(
             restrictions.merge(&other_restrictions),
             Err(WordleError::InvalidResults)
-        );
+        ));
         Ok(())
     }
 
@@ -873,10 +878,10 @@ mod tests {
             ],
         })?;
 
-        assert_eq!(
+        assert!(matches!(
             restrictions.merge(&other_restrictions),
             Err(WordleError::InvalidResults)
-        );
+        ));
         Ok(())
     }
 }

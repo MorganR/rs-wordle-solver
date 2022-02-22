@@ -7,8 +7,42 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::result::Result;
 
+/// Guesses words in order to solve a single Wordle.
+pub trait Guesser {
+    /// Updates this guesser with information about a word.
+    fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError>;
+
+    /// Selects a new guess for the Wordle.
+    ///
+    /// Returns `None` if no known words are possible given the known restrictions imposed by
+    /// previous calls to [`Self::update()`].
+    fn select_next_guess(&mut self) -> Option<Rc<str>>;
+}
+
 /// Attempts to guess the given word within the maximum number of guesses, using the given word
 /// guesser.
+///
+/// ```
+/// use wordle_solver::GameResult;
+/// use wordle_solver::RandomGuesser;
+/// use wordle_solver::WordBank;
+/// use wordle_solver::play_game_with_guesser;
+///
+/// let bank = WordBank::from_vec(
+///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
+/// let mut guesser = RandomGuesser::new(&bank);
+/// let result = play_game_with_guesser("def", 4, guesser.clone());
+///
+/// assert!(matches!(result, GameResult::Success(_guesses)));
+///
+/// let result = play_game_with_guesser("zzz", 4, guesser.clone());
+///
+/// assert!(matches!(result, GameResult::UnknownWord));
+///
+/// let result = play_game_with_guesser("other", 4, guesser);
+///
+/// assert!(matches!(result, GameResult::UnknownWord));
+/// ```
 pub fn play_game_with_guesser<G: Guesser>(
     word_to_guess: &str,
     max_num_guesses: u32,
@@ -23,6 +57,10 @@ pub fn play_game_with_guesser<G: Guesser>(
         let guess = maybe_guess.unwrap();
         guesses.push(Box::from(guess.as_ref()));
         let result = get_result_for_guess(word_to_guess, guess.as_ref());
+        if result.is_err() {
+            return GameResult::UnknownWord;
+        }
+        let result = result.unwrap();
 
         if result.results.iter().all(|lr| *lr == LetterResult::Correct) {
             return GameResult::Success(guesses);
@@ -30,18 +68,6 @@ pub fn play_game_with_guesser<G: Guesser>(
         guesser.update(&result).unwrap();
     }
     GameResult::Failure(guesses)
-}
-
-/// Guesses words in order to solve a single Wordle.
-pub trait Guesser {
-    /// Updates this guesser with information about a word.
-    fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError>;
-
-    /// Selects a new guess for the Wordle.
-    ///
-    /// Returns `None` if no known words are possible given the known restrictions imposed by
-    /// previous calls to [`Self::update()`].
-    fn select_next_guess(&mut self) -> Option<Rc<str>>;
 }
 
 /// Guesses at random from the possible words that meet the restrictions.
@@ -58,13 +84,13 @@ impl RandomGuesser {
     /// use wordle_solver::RandomGuesser;
     /// use wordle_solver::WordBank;
     ///
-    /// let bank = WordBank::from_vec(vec!["abc".into(), "def".into(), "ghi".into()]);
+    /// let bank = WordBank::from_vec(vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
     /// let guesser = RandomGuesser::new(&bank);
     /// ```
     pub fn new(bank: &WordBank) -> RandomGuesser {
         RandomGuesser {
             possible_words: bank.to_vec(),
-            restrictions: WordRestrictions::new(bank.max_word_len() as u8),
+            restrictions: WordRestrictions::new(bank.word_length() as u8),
         }
     }
 }
@@ -99,10 +125,12 @@ impl Guesser for RandomGuesser {
 /// file. This table shows the average number of guesses needed to find the objective word. There
 /// are more details in the docs for each scorer.
 ///
-/// |[`GuessFrom`]|[`MaxEliminationsScorer`]|[`MaxApproximateEliminationsScorer`]|[`LocatedLettersScorer`]|[`MaxUniqueLetterFrequencyScorer`]|
-/// |-------------|-------------------------|------------------------------------|------------------------|----------------------------------|
-/// |PossibleWords|            3.95 +/- 1.10|                       4.02 +/- 1.16|           4.00 +/- 1.15|                     4.16 +/- 1.22|
-/// |AllUnguessedWords|        3.78 +/- 0.65|                       3.85 +/- 0.72|           3.90 +/- 0.99|                     4.12 +/- 0.87|
+/// | Scorer                             |[`GuessFrom::PossibleWords`]|[`GuessFrom::AllUnguessedWords`]|
+/// |------------------------------------|----------------------------|--------------------------------|
+/// |[`MaxEliminationsScorer`]           |               3.95 +/- 1.10|                   3.78 +/- 0.65|
+/// |[`MaxApproximateEliminationsScorer`]|               4.02 +/- 1.16|                   3.85 +/- 0.72|
+/// |[`LocatedLettersScorer`]            |               4.00 +/- 1.15|                   3.90 +/- 0.99|
+/// |[`MaxUniqueLetterFrequencyScorer`]  |               4.16 +/- 1.22|                   4.12 +/- 0.87|
 pub trait WordScorer {
     /// Updates the scorer with the latest guess, the updated set of restrictions, and the updated
     /// list of possible words.
@@ -116,7 +144,7 @@ pub trait WordScorer {
     fn score_word(&mut self, word: &Rc<str>) -> i64;
 }
 
-/// Indicates which set of words to guess from.
+/// Indicates which set of words to guess from. See [`MaxScoreGuesser::new()`].
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum GuessFrom {
     /// Choose the next guess from any unguessed word in the whole word list.
@@ -151,12 +179,28 @@ where
     /// If in doubt, you probably want to use `GuessFrom::AllUnguessedWords` for better performance.
     ///
     /// See [`WordScorer`] for more information about possible scoring algorithms.
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wordle_solver::GuessFrom;
+    /// use wordle_solver::Guesser;
+    /// use wordle_solver::MaxEliminationsScorer;
+    /// use wordle_solver::MaxScoreGuesser;
+    /// use wordle_solver::WordBank;
+    ///
+    /// let bank = WordBank::from_vec(
+    ///     vec!["azz".into(), "bzz".into(), "czz".into(), "abc".into()]).unwrap();
+    /// let scorer = MaxEliminationsScorer::new(&bank).unwrap();
+    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
+    ///
+    /// assert_eq!(guesser.select_next_guess(), Some(Rc::from("abc")));
+    /// ```
     pub fn new(guess_mode: GuessFrom, word_bank: &WordBank, scorer: T) -> MaxScoreGuesser<T> {
         MaxScoreGuesser {
             guess_mode,
             all_unguessed_words: word_bank.to_vec(),
             possible_words: word_bank.to_vec(),
-            restrictions: WordRestrictions::new(word_bank.max_word_len() as u8),
+            restrictions: WordRestrictions::new(word_bank.word_length() as u8),
             scorer,
         }
     }
@@ -218,7 +262,7 @@ where
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
 /// results:
 ///
-/// |Num guesses|Num games (Guess from: PossibleWords)|Num games (Guess from: AllUnguessedWords)|
+/// |Num guesses|Num games (Guess from: `PossibleWords`)|Num games (Guess from: `AllUnguessedWords`)|
 /// |-----------|---------|---------------|
 /// |1|1|1|
 /// |2|137|32|
@@ -234,9 +278,9 @@ where
 ///
 /// **Average guesses:**
 ///
-/// Guess from PossibleWords: 4.16 +/- 1.22
+/// Guess from `PossibleWords`: 4.16 +/- 1.22
 ///
-/// Guess from AllUnguessedWords: 4.12 +/- 0.87
+/// Guess from `AllUnguessedWords`: 4.12 +/- 0.87
 #[derive(Clone)]
 pub struct MaxUniqueLetterFrequencyScorer {
     guessed_letters: HashSet<char>,
@@ -255,7 +299,8 @@ impl MaxUniqueLetterFrequencyScorer {
     /// use wordle_solver::WordBank;
     /// use wordle_solver::WordCounter;
     ///
-    /// let bank = WordBank::from_vec(vec!["abc".into(), "def".into(), "ghi".into()]);
+    /// let bank = WordBank::from_vec(
+    ///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
     /// let mut guesser = MaxScoreGuesser::new(
     ///     GuessFrom::AllUnguessedWords,
     ///     &bank,
@@ -324,7 +369,7 @@ impl WordScorer for MaxUniqueLetterFrequencyScorer {
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
 /// results:
 ///
-/// |Num guesses|Num games (Guess from: PossibleWords)|Num games (Guess from: AllUnguessedWords)|
+/// |Num guesses|Num games (Guess from: `PossibleWords`)|Num games (Guess from: `AllUnguessedWords`)|
 /// |-----------|---------|---------------|
 /// |1|1|1|
 /// |2|180|114|
@@ -341,9 +386,9 @@ impl WordScorer for MaxUniqueLetterFrequencyScorer {
 ///
 /// **Average guesses:**
 ///
-/// Guess from PossibleWords: 4.00 +/- 1.15
+/// Guess from `PossibleWords`: 4.00 +/- 1.15
 ///
-/// Guess from AllUnguessedWords: 3.90 +/- 0.99
+/// Guess from `AllUnguessedWords`: 3.90 +/- 0.99
 #[derive(Clone)]
 pub struct LocatedLettersScorer {
     counter: WordCounter,
@@ -362,7 +407,8 @@ impl LocatedLettersScorer {
     /// use wordle_solver::WordBank;
     /// use wordle_solver::WordCounter;
     ///
-    /// let bank = WordBank::from_vec(vec!["abc".into(), "def".into(), "ghi".into()]);
+    /// let bank = WordBank::from_vec(
+    ///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
     /// let scorer = LocatedLettersScorer::new(&bank, WordCounter::new(&bank));
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer.clone());
     ///
@@ -370,7 +416,7 @@ impl LocatedLettersScorer {
     /// ```
     pub fn new(bank: &WordBank, counter: WordCounter) -> LocatedLettersScorer {
         LocatedLettersScorer {
-            restrictions: WordRestrictions::new(bank.max_word_len() as u8),
+            restrictions: WordRestrictions::new(bank.word_length() as u8),
             counter,
         }
     }
@@ -443,7 +489,7 @@ impl WordScorer for LocatedLettersScorer {
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
 /// results:
 ///
-/// |Num guesses|Num games (Guess from: PossibleWords)|Num games (Guess from: AllUnguessedWords)|
+/// |Num guesses|Num games (Guess from: `PossibleWords`)|Num games (Guess from: `AllUnguessedWords`)|
 /// |-----------|---------|---------------|
 /// |1|1|1|
 /// |2|180|72|
@@ -460,9 +506,9 @@ impl WordScorer for LocatedLettersScorer {
 ///
 /// **Average guesses:**
 ///
-/// Guess from PossibleWords: 4.02 +/- 1.16
+/// Guess from `PossibleWords`: 4.02 +/- 1.16
 ///
-/// Guess from AllUnguessedWords: 3.85 +/- 0.72
+/// Guess from `AllUnguessedWords`: 3.85 +/- 0.72
 #[derive(Clone)]
 pub struct MaxApproximateEliminationsScorer {
     counter: WordCounter,
@@ -480,7 +526,8 @@ impl MaxApproximateEliminationsScorer {
     /// use wordle_solver::WordBank;
     /// use wordle_solver::WordCounter;
     ///
-    /// let bank = WordBank::from_vec(vec!["abc".into(), "def".into(), "ghi".into()]);
+    /// let bank = WordBank::from_vec(
+    ///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
     /// let scorer = MaxApproximateEliminationsScorer::new(WordCounter::new(&bank));
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
     ///
@@ -557,7 +604,7 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
 /// results:
 ///
-/// |Num guesses|Num games (Guess from: PossibleWords)|Num games (Guess from: AllUnguessedWords)|
+/// |Num guesses|Num games (Guess from: `PossibleWords`)|Num games (Guess from: `AllUnguessedWords`)|
 /// |-----------|---------|---------------|
 /// |1|1|1|
 /// |2|180|53|
@@ -573,9 +620,9 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 ///
 /// **Average guesses:**
 ///
-/// Guess from PossibleWords: 3.95 +/- 1.10
+/// Guess from `PossibleWords`: 3.95 +/- 1.10
 ///
-/// Guess from AllUnguessedWords: 3.78 +/- 0.65
+/// Guess from `AllUnguessedWords`: 3.78 +/- 0.65
 #[derive(Clone)]
 pub struct MaxEliminationsScorer {
     guess_results: PrecomputedGuessResults,
@@ -600,30 +647,31 @@ impl MaxEliminationsScorer {
     /// use wordle_solver::MaxScoreGuesser;
     /// use wordle_solver::WordBank;
     ///
-    /// let bank = WordBank::from_vec(vec!["abc".into(), "def".into(), "ghi".into()]);
-    /// let scorer = MaxEliminationsScorer::new(&bank);
+    /// let bank = WordBank::from_vec(
+    ///     vec!["abc".into(), "def".into(), "ghi".into()]).unwrap();
+    /// let scorer = MaxEliminationsScorer::new(&bank).unwrap();
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
-    pub fn new(all_words: &[Rc<str>]) -> MaxEliminationsScorer {
-        let guess_results = PrecomputedGuessResults::compute(&all_words);
+    pub fn new(all_words: &[Rc<str>]) -> Result<MaxEliminationsScorer, WordleError> {
+        let guess_results = PrecomputedGuessResults::compute(all_words)?;
         let mut expected_eliminations_per_word: HashMap<Rc<str>, f64> = HashMap::new();
         let mut max_eliminations = 0.0;
         for word in all_words {
             let expected_elimations =
-                compute_expected_eliminations(word, &guess_results, &all_words);
+                compute_expected_eliminations(word, &guess_results, all_words);
             if expected_elimations > max_eliminations {
                 max_eliminations = expected_elimations;
             }
             expected_eliminations_per_word.insert(Rc::clone(word), expected_elimations);
         }
-        MaxEliminationsScorer {
+        Ok(MaxEliminationsScorer {
             guess_results,
             possible_words: all_words.to_vec(),
             previous_expected_eliminations_per_word: expected_eliminations_per_word,
             max_expected_eliminations: max_eliminations,
-        }
+        })
     }
 
     fn can_skip(&self, word: &Rc<str>) -> bool {
@@ -647,9 +695,13 @@ fn compute_expected_eliminations(
         let guess_result = guess_results
             .get_result(possible_word, word)
             .unwrap_or_else(|| {
+                // Unwrap the results since the word's validity should already be guaranteed.
                 CompressedGuessResult::from_result(
-                    &get_result_for_guess(possible_word.as_ref(), word.as_ref()).results,
+                    &get_result_for_guess(possible_word.as_ref(), word.as_ref())
+                        .unwrap()
+                        .results,
                 )
+                .unwrap()
             });
         *matching_results.entry(guess_result).or_insert(0) += 1;
     }
@@ -684,170 +736,5 @@ impl WordScorer for MaxEliminationsScorer {
         self.previous_expected_eliminations_per_word
             .insert(Rc::clone(word), expected_elimations);
         (expected_elimations * 1000.0) as i64
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_get_result_for_guess() {
-        assert_eq!(
-            get_result_for_guess("abba", "back"),
-            GuessResult {
-                guess: "back",
-                results: vec![
-                    LetterResult::PresentNotHere,
-                    LetterResult::PresentNotHere,
-                    LetterResult::NotPresent,
-                    LetterResult::NotPresent
-                ],
-            }
-        );
-        assert_eq!(
-            get_result_for_guess("abba", "babb"),
-            GuessResult {
-                guess: "babb",
-                results: vec![
-                    LetterResult::PresentNotHere,
-                    LetterResult::PresentNotHere,
-                    LetterResult::Correct,
-                    LetterResult::NotPresent
-                ],
-            }
-        );
-        assert_eq!(
-            get_result_for_guess("abcd", "bcce"),
-            GuessResult {
-                guess: "bcce",
-                results: vec![
-                    LetterResult::PresentNotHere,
-                    LetterResult::NotPresent,
-                    LetterResult::Correct,
-                    LetterResult::NotPresent
-                ],
-            }
-        );
-    }
-
-    fn to_string_vec(words: Vec<&str>) -> Vec<String> {
-        words.iter().map(|word| word.to_string()).collect()
-    }
-
-    #[test]
-    fn score_located_letters_guesser_score_word() {
-        let bank = WordBank::from_vec(to_string_vec(vec![
-            "alpha", "allot", "begot", "below", "endow", "ingot",
-        ]));
-        let mut scorer = LocatedLettersScorer::new(&bank, WordCounter::new(bank.as_ref()));
-
-        assert_eq!(scorer.score_word(&Rc::from("alpha")), 4 + 5 + 2 + 2 + 1);
-        assert_eq!(scorer.score_word(&Rc::from("allot")), 4 + 5 + 2 + 10 + 6);
-        assert_eq!(scorer.score_word(&Rc::from("begot")), 4 + 5 + 4 + 10 + 6);
-        assert_eq!(scorer.score_word(&Rc::from("below")), 4 + 5 + 5 + 10 + 4);
-        assert_eq!(scorer.score_word(&Rc::from("endow")), 4 + 4 + 2 + 10 + 4);
-        assert_eq!(scorer.score_word(&Rc::from("ingot")), 2 + 4 + 4 + 10 + 6);
-        assert_eq!(scorer.score_word(&Rc::from("other")), 5 + 3 + 1 + 3 + 0);
-    }
-
-    #[test]
-    fn score_located_letters_guesser_update() -> Result<(), WordleError> {
-        let bank = WordBank::from_vec(to_string_vec(vec![
-            "alpha", "allot", "begot", "below", "endow", "ingot",
-        ]));
-        let mut scorer = LocatedLettersScorer::new(&bank, WordCounter::new(bank.as_ref()));
-
-        let restrictions = WordRestrictions::from_result(&GuessResult {
-            guess: "begot",
-            results: vec![
-                LetterResult::NotPresent,
-                LetterResult::PresentNotHere,
-                LetterResult::NotPresent,
-                LetterResult::Correct,
-                LetterResult::NotPresent,
-            ],
-        });
-        scorer.update("begot", &restrictions, &vec![Rc::from("endow")])?;
-        // Remaining possible words: 'endow'
-
-        assert_eq!(scorer.score_word(&Rc::from("alpha")), 0 + 0 + 0 + 0 + 0);
-        assert_eq!(scorer.score_word(&Rc::from("below")), 0 + 0 + 0 + 1 + 2);
-        assert_eq!(scorer.score_word(&Rc::from("endow")), 1 + 2 + 2 + 1 + 2);
-        assert_eq!(scorer.score_word(&Rc::from("other")), 0 + 0 + 0 + 0 + 0);
-        Ok(())
-    }
-
-    #[test]
-    fn score_located_letters_guesser_update_with_unknown_word() -> Result<(), WordleError> {
-        let bank = WordBank::from_vec(to_string_vec(vec![
-            "alpha", "allot", "begot", "below", "endow", "ingot",
-        ]));
-        let mut scorer = LocatedLettersScorer::new(&bank, WordCounter::new(&bank));
-
-        let restrictions = WordRestrictions::from_result(&GuessResult {
-            guess: "other",
-            results: vec![
-                LetterResult::PresentNotHere,
-                LetterResult::NotPresent,
-                LetterResult::NotPresent,
-                LetterResult::PresentNotHere,
-                LetterResult::NotPresent,
-            ],
-        });
-        scorer.update(
-            "other",
-            &restrictions,
-            &vec![Rc::from("below"), Rc::from("endow")],
-        )?;
-        // Remaining possible words: 'below', 'endow'
-
-        assert_eq!(scorer.score_word(&Rc::from("alpha")), 0 + 1 + 0 + 0 + 0);
-        assert_eq!(scorer.score_word(&Rc::from("below")), 2 + 1 + 2 + 2 + 4);
-        assert_eq!(scorer.score_word(&Rc::from("endow")), 1 + 2 + 2 + 2 + 4);
-        assert_eq!(scorer.score_word(&Rc::from("other")), 0 + 0 + 0 + 0 + 0);
-        Ok(())
-    }
-
-    #[test]
-    fn max_eliminations_scorer_score_word() {
-        let possible_words: Vec<Rc<str>> = vec![Rc::from("cod"), Rc::from("wod"), Rc::from("mod")];
-        let mut scorer = MaxEliminationsScorer::new(&possible_words);
-
-        assert_eq!(scorer.score_word(&possible_words[0]), 1333);
-        assert_eq!(scorer.score_word(&Rc::from("mwc")), 2000);
-        assert_eq!(scorer.score_word(&Rc::from("zzz")), 0);
-    }
-
-    #[test]
-    fn max_eliminations_scorer_score_word_after_update() -> Result<(), WordleError> {
-        let possible_words: Vec<Rc<str>> = vec![
-            Rc::from("abb"),
-            Rc::from("abc"),
-            Rc::from("bad"),
-            Rc::from("zza"),
-            Rc::from("zzz"),
-        ];
-        let mut scorer = MaxEliminationsScorer::new(&possible_words);
-
-        let restrictions = WordRestrictions::from_result(&GuessResult {
-            guess: "zza",
-            results: vec![
-                LetterResult::NotPresent,
-                LetterResult::NotPresent,
-                LetterResult::PresentNotHere,
-            ],
-        });
-        scorer.update("zza", &restrictions, &Vec::from(&possible_words[0..3]))?;
-        // Still possible: abb, abc, bad
-
-        // Eliminates 2 in all cases.
-        assert_eq!(scorer.score_word(&possible_words[0]), 2000);
-        // Eliminates 2 in all cases.
-        assert_eq!(scorer.score_word(&possible_words[1]), 2000);
-        // Could be true in one case (elimnate 2), or false in 2 cases (eliminate 1)
-        assert_eq!(scorer.score_word(&possible_words[2]), 1333);
-        assert_eq!(scorer.score_word(&Rc::from("zzz")), 0);
-        Ok(())
     }
 }
