@@ -33,27 +33,6 @@ fn word_bank_from_reader_succeeds() -> Result<(), WordleError> {
 }
 
 #[test]
-fn word_bank_from_slice_succeeds() -> Result<(), WordleError> {
-    let word_bank = WordBank::from_slice(&["", "worda", "Wordb "])?;
-
-    assert_eq!(word_bank.len(), 2);
-    assert_rc_eq!(&word_bank, &["worda", "wordb"]);
-    assert_eq!(word_bank.word_length(), 5);
-    Ok(())
-}
-
-#[test]
-fn word_bank_from_string_slice_succeeds() -> Result<(), WordleError> {
-    let word_bank =
-        WordBank::from_slice(&["".to_string(), "worda".to_string(), "Wordb ".to_string()])?;
-
-    assert_eq!(word_bank.len(), 2);
-    assert_rc_eq!(&word_bank, &["worda", "wordb"]);
-    assert_eq!(word_bank.word_length(), 5);
-    Ok(())
-}
-
-#[test]
 fn word_bank_from_iterator_succeeds() -> Result<(), WordleError> {
     let word_bank = WordBank::from_iterator(vec!["", "worda", "Wordb "])?;
 
@@ -89,9 +68,9 @@ fn word_bank_from_reader_mismatched_word_length_fails() {
 
 #[test]
 fn compressed_guess_result_equality() -> Result<(), WordleError> {
-    let result_correct = CompressedGuessResult::from_result(&[LetterResult::Correct; 4])?;
-    let result_not_here = CompressedGuessResult::from_result(&[LetterResult::PresentNotHere; 4])?;
-    let result_not_present = CompressedGuessResult::from_result(&[LetterResult::NotPresent; 4])?;
+    let result_correct = CompressedGuessResult::from_results(&[LetterResult::Correct; 4])?;
+    let result_not_here = CompressedGuessResult::from_results(&[LetterResult::PresentNotHere; 4])?;
+    let result_not_present = CompressedGuessResult::from_results(&[LetterResult::NotPresent; 4])?;
 
     assert_eq!(result_correct, result_correct);
     assert_eq!(result_not_here, result_not_here);
@@ -109,12 +88,12 @@ fn guess_results_computes_for_all_words() {
 
     assert_eq!(
         results.get_result(&all_words[0], &all_words[0]),
-        Some(CompressedGuessResult::from_result(&[LetterResult::Correct; 5]).unwrap())
+        Some(CompressedGuessResult::from_results(&[LetterResult::Correct; 5]).unwrap())
     );
     assert_eq!(
         results.get_result(&all_words[0], &all_words[1]),
         Some(
-            CompressedGuessResult::from_result(&[
+            CompressedGuessResult::from_results(&[
                 LetterResult::Correct,
                 LetterResult::NotPresent,
                 LetterResult::Correct,
@@ -127,7 +106,7 @@ fn guess_results_computes_for_all_words() {
     assert_eq!(
         results.get_result(&all_words[0], &all_words[2]),
         Some(
-            CompressedGuessResult::from_result(&[
+            CompressedGuessResult::from_results(&[
                 LetterResult::NotPresent,
                 LetterResult::PresentNotHere,
                 LetterResult::NotPresent,
@@ -139,12 +118,12 @@ fn guess_results_computes_for_all_words() {
     );
     assert_eq!(
         results.get_result(&all_words[1], &all_words[1]),
-        Some(CompressedGuessResult::from_result(&[LetterResult::Correct; 5]).unwrap())
+        Some(CompressedGuessResult::from_results(&[LetterResult::Correct; 5]).unwrap())
     );
     assert_eq!(
         results.get_result(&all_words[1], &all_words[0]),
         Some(
-            CompressedGuessResult::from_result(&[
+            CompressedGuessResult::from_results(&[
                 LetterResult::Correct,
                 LetterResult::NotPresent,
                 LetterResult::Correct,
@@ -157,7 +136,7 @@ fn guess_results_computes_for_all_words() {
     assert_eq!(
         results.get_result(&all_words[1], &all_words[2]),
         Some(
-            CompressedGuessResult::from_result(&[
+            CompressedGuessResult::from_results(&[
                 LetterResult::NotPresent,
                 LetterResult::PresentNotHere,
                 LetterResult::NotPresent,
@@ -169,12 +148,12 @@ fn guess_results_computes_for_all_words() {
     );
     assert_eq!(
         results.get_result(&all_words[2], &all_words[2]),
-        Some(CompressedGuessResult::from_result(&[LetterResult::Correct; 5]).unwrap())
+        Some(CompressedGuessResult::from_results(&[LetterResult::Correct; 5]).unwrap())
     );
     assert_eq!(
         results.get_result(&all_words[2], &all_words[0]),
         Some(
-            CompressedGuessResult::from_result(&[
+            CompressedGuessResult::from_results(&[
                 LetterResult::NotPresent,
                 LetterResult::NotPresent,
                 LetterResult::NotPresent,
@@ -187,7 +166,7 @@ fn guess_results_computes_for_all_words() {
     assert_eq!(
         results.get_result(&all_words[2], &all_words[1]),
         Some(
-            CompressedGuessResult::from_result(&[
+            CompressedGuessResult::from_results(&[
                 LetterResult::NotPresent,
                 LetterResult::PresentNotHere,
                 LetterResult::NotPresent,

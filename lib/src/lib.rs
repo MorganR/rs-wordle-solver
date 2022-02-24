@@ -8,7 +8,7 @@
 /// use wordle_solver::*;
 ///
 /// // Construct a WordBank to select guesses from.
-/// let bank = WordBank::from_slice(&["abc", "bcd", "def"])?;
+/// let bank = WordBank::from_iterator(&["abc", "bcd", "def"])?;
 /// // Construct a guesser.
 /// let guesser = RandomGuesser::new(&bank);
 /// // Play the game.
@@ -26,7 +26,7 @@
 /// use wordle_solver::*;
 ///
 /// // Construct a WordBank to select guesses from.
-/// let bank = WordBank::from_slice(&["abc", "bcd", "def"])?;
+/// let bank = WordBank::from_iterator(&["abc", "bcd", "def"])?;
 /// // Construct a guesser.
 /// let mut guesser = RandomGuesser::new(&bank);
 ///

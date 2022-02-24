@@ -101,30 +101,6 @@ impl WordBank {
     /// use wordle_solver::WordBank;
     /// # use wordle_solver::WordleError;
     ///
-    /// let words = ["abc", "DEF "];
-    /// let word_bank = WordBank::from_slice(&words)?;
-    ///
-    /// assert_eq!(&word_bank as &[Rc<str>], &[Rc::from("abc"), Rc::from("def")]);
-    /// # Ok::<(), WordleError>(())
-    /// ```
-    pub fn from_slice<S>(words: &[S]) -> Result<Self, WordleError>
-    where
-        S: AsRef<str>,
-    {
-        WordBank::from_iterator(words.iter())
-    }
-
-    /// Constructs a new `WordBank` struct using the words from the given vector. Each word will be
-    /// trimmed and converted to lower case.
-    ///
-    /// After trimming, all words must be the same length, else this returns an error of type
-    /// [`WordleError::WordLength`].
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use wordle_solver::WordBank;
-    /// # use wordle_solver::WordleError;
-    ///
     /// let words = vec!["abc".to_string(), "DEF ".to_string()];
     /// let word_bank = WordBank::from_iterator(words.iter())?;
     ///
@@ -135,16 +111,10 @@ impl WordBank {
     where
         S: AsRef<str>,
     {
-        WordBank::from_iter_private(words.into_iter())
-    }
-
-    fn from_iter_private<S>(words: impl Iterator<Item = S>) -> Result<Self, WordleError>
-    where
-        S: AsRef<str>,
-    {
         let mut word_length = 0;
         Ok(WordBank {
             all_words: words
+                .into_iter()
                 .filter_map(|word| {
                     let normalized: Rc<str> =
                         Rc::from(word.as_ref().trim().to_lowercase().as_str());
@@ -165,19 +135,19 @@ impl WordBank {
     }
 
     /// Returns the number of possible words.
-    #[inline(always)]
+    #[inline]
     pub fn len(&self) -> usize {
         self.all_words.len()
     }
 
     /// Returns true iff this word bank is empty.
-    #[inline(always)]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.all_words.is_empty()
     }
 
     /// Returns the length of each word in the word bank.
-    #[inline(always)]
+    #[inline]
     pub fn word_length(&self) -> usize {
         self.word_length
     }
@@ -187,6 +157,7 @@ impl Deref for WordBank {
     type Target = [Rc<str>];
 
     /// Derefs the list of words in the `WordBank` as a slice.
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.all_words
     }
@@ -219,6 +190,7 @@ pub struct WordCounter {
 
 impl WordCounter {
     /// Creates a new word counter based on the given word list.
+    #[inline]
     pub fn new<S>(words: &[S]) -> WordCounter
     where
         S: AsRef<str>,
@@ -233,7 +205,7 @@ impl WordCounter {
     /// use wordle_solver::details::LocatedLetter;
     ///
     /// let all_words = vec!["aba", "bbd", "efg"];
-    /// let counter = WordCounter::new(&all_words);
+    /// let counter = WordCounter::from_iter(&all_words);
     ///  
     /// assert_eq!(counter.num_words_with_located_letter(
     ///     &LocatedLetter::new('b', 0)), 1);
@@ -256,7 +228,7 @@ impl WordCounter {
     /// use wordle_solver::WordCounter;
     ///
     /// let all_words = vec!["aba", "bbd", "efg"];
-    /// let counter = WordCounter::new(&all_words);
+    /// let counter = WordCounter::from_iter(&all_words);
     ///  
     /// assert_eq!(counter.num_words_with_letter('a'), 1);
     /// assert_eq!(counter.num_words_with_letter('b'), 2);
@@ -267,6 +239,7 @@ impl WordCounter {
     }
 
     /// Retrieves the total number of words in this counter.
+    #[inline]
     pub fn num_words(&self) -> u32 {
         self.num_words
     }
@@ -404,6 +377,7 @@ impl WordTracker {
     ///
     /// assert_eq!(tracker.all_words(), &all_words);
     /// ```
+    #[inline]
     pub fn from_slice(words: &[Rc<str>]) -> WordTracker {
         let all_words: Vec<Rc<str>> = words.iter().map(Rc::clone).collect();
         WordTracker::new(all_words)
@@ -420,6 +394,7 @@ impl WordTracker {
     ///
     /// assert_eq!(tracker.all_words(), &all_words);
     /// ```
+    #[inline]
     pub fn all_words(&self) -> &[Rc<str>] {
         &self.all_words
     }
@@ -436,6 +411,7 @@ impl WordTracker {
     /// assert!(tracker.has_letter('a'));
     /// assert!(!tracker.has_letter('z'));
     /// ```
+    #[inline]
     pub fn has_letter(&self, letter: char) -> bool {
         self.words_by_letter.contains_key(&letter)
     }
@@ -561,6 +537,7 @@ impl FromIterator<Rc<str>> for WordTracker {
     ///
     /// assert_eq!(tracker.all_words().to_vec(), all_words_copy);
     /// ```
+    #[inline]
     fn from_iter<T>(iter: T) -> Self
     where
         T: IntoIterator<Item = Rc<str>>,
@@ -581,6 +558,7 @@ impl<'a> FromIterator<&'a Rc<str>> for WordTracker {
     ///
     /// assert_eq!(tracker.all_words().to_vec(), all_words);
     /// ```
+    #[inline]
     fn from_iter<T>(iter: T) -> Self
     where
         T: IntoIterator<Item = &'a Rc<str>>,
@@ -601,7 +579,7 @@ impl CompressedGuessResult {
     /// Creates a compressed form of the given letter results.
     ///
     /// Returns a [`WordleError::WordLength`] error if `letter_results` has more than 10 values.
-    pub fn from_result(
+    pub fn from_results(
         letter_results: &[LetterResult],
     ) -> std::result::Result<CompressedGuessResult, WordleError> {
         if letter_results.len() > MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT {
@@ -642,7 +620,7 @@ impl PrecomputedGuessResults {
     /// the number of words, in both compute and memory.
     ///
     /// Words must be 10 characters or less.
-    pub fn compute(all_words: &[Rc<str>]) -> std::result::Result<Self, WordleError> {
+    pub fn compute(all_words: &[Rc<str>]) -> Result<Self, WordleError> {
         let mut results_by_objective_guess_pair: HashMap<
             (Rc<str>, Rc<str>),
             CompressedGuessResult,
@@ -651,7 +629,7 @@ impl PrecomputedGuessResults {
             for guess in all_words {
                 results_by_objective_guess_pair.insert(
                     (objective.clone(), guess.clone()),
-                    CompressedGuessResult::from_result(
+                    CompressedGuessResult::from_results(
                         &get_result_for_guess(objective, guess)?.results,
                     )?,
                 );
@@ -675,13 +653,13 @@ impl PrecomputedGuessResults {
     ///
     /// assert_eq!(
     ///     results.get_result(&all_words[0], &all_words[1]),
-    ///     Some(CompressedGuessResult::from_result(&[
+    ///     Some(CompressedGuessResult::from_results(&[
     ///         LetterResult::PresentNotHere,
     ///         LetterResult::NotPresent,
     ///         LetterResult::NotPresent]).unwrap()));
     /// assert_eq!(
     ///     results.get_result(&all_words[1], &all_words[0]),
-    ///     Some(CompressedGuessResult::from_result(&[
+    ///     Some(CompressedGuessResult::from_results(&[
     ///         LetterResult::NotPresent,
     ///         LetterResult::PresentNotHere,
     ///         LetterResult::NotPresent]).unwrap()));
