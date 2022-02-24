@@ -23,10 +23,10 @@ pub trait Guesser {
 /// guesser.
 ///
 /// ```
-/// use wordle_solver::GameResult;
-/// use wordle_solver::RandomGuesser;
-/// use wordle_solver::WordBank;
-/// use wordle_solver::play_game_with_guesser;
+/// use rs_wordle_solver::GameResult;
+/// use rs_wordle_solver::RandomGuesser;
+/// use rs_wordle_solver::WordBank;
+/// use rs_wordle_solver::play_game_with_guesser;
 ///
 /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
 /// let mut guesser = RandomGuesser::new(&bank);
@@ -80,8 +80,8 @@ impl RandomGuesser {
     /// Constructs a new `RandomGuesser` using the given word bank.
     ///
     /// ```
-    /// use wordle_solver::RandomGuesser;
-    /// use wordle_solver::WordBank;
+    /// use rs_wordle_solver::RandomGuesser;
+    /// use rs_wordle_solver::WordBank;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
     /// let guesser = RandomGuesser::new(&bank);
@@ -181,11 +181,11 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::GuessFrom;
-    /// use wordle_solver::Guesser;
-    /// use wordle_solver::MaxEliminationsScorer;
-    /// use wordle_solver::MaxScoreGuesser;
-    /// use wordle_solver::WordBank;
+    /// use rs_wordle_solver::GuessFrom;
+    /// use rs_wordle_solver::Guesser;
+    /// use rs_wordle_solver::MaxEliminationsScorer;
+    /// use rs_wordle_solver::MaxScoreGuesser;
+    /// use rs_wordle_solver::WordBank;
     ///
     /// let bank = WordBank::from_iterator(&["azz", "bzz", "czz", "abc"]).unwrap();
     /// let scorer = MaxEliminationsScorer::new(&bank).unwrap();
@@ -290,12 +290,12 @@ impl MaxUniqueLetterFrequencyScorer {
     /// counter should be constructed from the same word bank that the guesser will use.
     ///
     /// ```
-    /// use wordle_solver::GuessFrom;
-    /// use wordle_solver::Guesser;
-    /// use wordle_solver::MaxUniqueLetterFrequencyScorer;
-    /// use wordle_solver::MaxScoreGuesser;
-    /// use wordle_solver::WordBank;
-    /// use wordle_solver::WordCounter;
+    /// use rs_wordle_solver::GuessFrom;
+    /// use rs_wordle_solver::Guesser;
+    /// use rs_wordle_solver::MaxUniqueLetterFrequencyScorer;
+    /// use rs_wordle_solver::MaxScoreGuesser;
+    /// use rs_wordle_solver::WordBank;
+    /// use rs_wordle_solver::WordCounter;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
     /// let mut guesser = MaxScoreGuesser::new(
@@ -397,12 +397,12 @@ impl LocatedLettersScorer {
     /// The counter should be constructed from the same bank.
     ///
     /// ```
-    /// use wordle_solver::GuessFrom;
-    /// use wordle_solver::Guesser;
-    /// use wordle_solver::LocatedLettersScorer;
-    /// use wordle_solver::MaxScoreGuesser;
-    /// use wordle_solver::WordBank;
-    /// use wordle_solver::WordCounter;
+    /// use rs_wordle_solver::GuessFrom;
+    /// use rs_wordle_solver::Guesser;
+    /// use rs_wordle_solver::LocatedLettersScorer;
+    /// use rs_wordle_solver::MaxScoreGuesser;
+    /// use rs_wordle_solver::WordBank;
+    /// use rs_wordle_solver::WordCounter;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
     /// let scorer = LocatedLettersScorer::new(&bank, WordCounter::from_iter(&*bank));
@@ -515,12 +515,12 @@ impl MaxApproximateEliminationsScorer {
     /// The counter should be constructed from the same bank as the associated [`Guesser`].
     ////Unmi
     /// ```
-    /// use wordle_solver::GuessFrom;
-    /// use wordle_solver::Guesser;
-    /// use wordle_solver::MaxApproximateEliminationsScorer;
-    /// use wordle_solver::MaxScoreGuesser;
-    /// use wordle_solver::WordBank;
-    /// use wordle_solver::WordCounter;
+    /// use rs_wordle_solver::GuessFrom;
+    /// use rs_wordle_solver::Guesser;
+    /// use rs_wordle_solver::MaxApproximateEliminationsScorer;
+    /// use rs_wordle_solver::MaxScoreGuesser;
+    /// use rs_wordle_solver::WordBank;
+    /// use rs_wordle_solver::WordCounter;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
     /// let scorer = MaxApproximateEliminationsScorer::new(WordCounter::from_iter(&*bank));
@@ -636,11 +636,11 @@ impl MaxEliminationsScorer {
     /// number of words.
     ///
     /// ```
-    /// use wordle_solver::GuessFrom;
-    /// use wordle_solver::Guesser;
-    /// use wordle_solver::MaxEliminationsScorer;
-    /// use wordle_solver::MaxScoreGuesser;
-    /// use wordle_solver::WordBank;
+    /// use rs_wordle_solver::GuessFrom;
+    /// use rs_wordle_solver::Guesser;
+    /// use rs_wordle_solver::MaxEliminationsScorer;
+    /// use rs_wordle_solver::MaxScoreGuesser;
+    /// use rs_wordle_solver::WordBank;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
     /// let scorer = MaxEliminationsScorer::new(&bank).unwrap();

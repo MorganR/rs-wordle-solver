@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io;
 use std::result::Result;
 use std::time::Instant;
-use wordle_solver::*;
+use rs_wordle_solver::*;
 
 /// Simple program to run a Wordle game in reverse, where the computer guesses the word.
 #[derive(Parser, Debug)]
@@ -68,11 +68,11 @@ impl std::str::FromStr for GuessFrom {
     }
 }
 
-impl Into<wordle_solver::GuessFrom> for GuessFrom {
-    fn into(self) -> wordle_solver::GuessFrom {
+impl Into<rs_wordle_solver::GuessFrom> for GuessFrom {
+    fn into(self) -> rs_wordle_solver::GuessFrom {
         match self {
-            Self::AllUnguessedWords => wordle_solver::GuessFrom::AllUnguessedWords,
-            Self::PossibleWords => wordle_solver::GuessFrom::PossibleWords,
+            Self::AllUnguessedWords => rs_wordle_solver::GuessFrom::AllUnguessedWords,
+            Self::PossibleWords => rs_wordle_solver::GuessFrom::PossibleWords,
         }
     }
 }

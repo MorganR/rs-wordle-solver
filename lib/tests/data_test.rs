@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate assert_matches;
 
-use wordle_solver::details::*;
-use wordle_solver::*;
+use rs_wordle_solver::details::*;
+use rs_wordle_solver::*;
 
 use std::io::Cursor;
 use std::rc::Rc;

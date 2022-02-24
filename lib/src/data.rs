@@ -9,7 +9,7 @@ use std::result::Result;
 /// A letter along with its location in the word.
 ///
 /// ```
-/// use wordle_solver::details::LocatedLetter;
+/// use rs_wordle_solver::details::LocatedLetter;
 ///
 /// let word = "abc";
 ///
@@ -56,8 +56,8 @@ impl WordBank {
     /// ```no_run
     /// use std::fs::File;
     /// use std::io;
-    /// use wordle_solver::WordBank;
-    /// # use wordle_solver::WordleError;
+    /// use rs_wordle_solver::WordBank;
+    /// # use rs_wordle_solver::WordleError;
     ///
     /// let words_reader = io::BufReader::new(File::open("path/to/my/words.txt")?);
     /// let word_bank = WordBank::from_reader(words_reader)?;
@@ -98,8 +98,8 @@ impl WordBank {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::WordBank;
-    /// # use wordle_solver::WordleError;
+    /// use rs_wordle_solver::WordBank;
+    /// # use rs_wordle_solver::WordleError;
     ///
     /// let words = vec!["abc".to_string(), "DEF ".to_string()];
     /// let word_bank = WordBank::from_iterator(words.iter())?;
@@ -171,8 +171,8 @@ impl Deref for WordBank {
 /// Use:
 ///
 /// ```
-/// # use wordle_solver::WordCounter;
-/// # use wordle_solver::details::LocatedLetter;
+/// # use rs_wordle_solver::WordCounter;
+/// # use rs_wordle_solver::details::LocatedLetter;
 /// let all_words = vec!["aba", "bbd", "efg"];
 /// let counter = WordCounter::new(&all_words);
 ///  
@@ -201,8 +201,8 @@ impl WordCounter {
     /// Retrieves the count of words with the given letter at the given location.
     ///
     /// ```
-    /// use wordle_solver::WordCounter;
-    /// use wordle_solver::details::LocatedLetter;
+    /// use rs_wordle_solver::WordCounter;
+    /// use rs_wordle_solver::details::LocatedLetter;
     ///
     /// let all_words = vec!["aba", "bbd", "efg"];
     /// let counter = WordCounter::from_iter(&all_words);
@@ -225,7 +225,7 @@ impl WordCounter {
     /// Retrieves the count of words that contain the given letter.
     ///
     /// ```
-    /// use wordle_solver::WordCounter;
+    /// use rs_wordle_solver::WordCounter;
     ///
     /// let all_words = vec!["aba", "bbd", "efg"];
     /// let counter = WordCounter::from_iter(&all_words);
@@ -252,7 +252,7 @@ where
     /// Creates a new word counter based on the given word list.
     ///
     /// ```
-    /// use wordle_solver::WordCounter;
+    /// use rs_wordle_solver::WordCounter;
     ///
     /// let all_words = vec!["bba", "bcd", "efg"];
     /// let counter: WordCounter = all_words.iter().collect();
@@ -298,8 +298,8 @@ where
 ///
 /// ```
 /// use std::rc::Rc;
-/// use wordle_solver::details::WordTracker;
-/// use wordle_solver::details::LocatedLetter;
+/// use rs_wordle_solver::details::WordTracker;
+/// use rs_wordle_solver::details::LocatedLetter;
 ///
 /// let all_words = [Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
 /// let tracker = WordTracker::from_slice(&all_words);
@@ -327,7 +327,7 @@ impl WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::WordTracker;
     ///
     /// let all_words = vec![Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
     /// let tracker = WordTracker::new(all_words.clone());
@@ -370,7 +370,7 @@ impl WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::WordTracker;
     ///
     /// let all_words = [Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
@@ -387,7 +387,7 @@ impl WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::WordTracker;
     ///
     /// let all_words = [Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
@@ -403,7 +403,7 @@ impl WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::WordTracker;
     ///
     /// let all_words = [Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
@@ -420,8 +420,8 @@ impl WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
-    /// use wordle_solver::details::LocatedLetter;
+    /// use rs_wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::LocatedLetter;
     ///
     /// let all_words = [Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
@@ -447,7 +447,7 @@ impl WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::WordTracker;
     ///
     /// let all_words = [Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
@@ -474,8 +474,8 @@ impl WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
-    /// use wordle_solver::details::LocatedLetter;
+    /// use rs_wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::LocatedLetter;
     ///
     /// let all_words = [Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
@@ -504,8 +504,8 @@ impl WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
-    /// use wordle_solver::details::LocatedLetter;
+    /// use rs_wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::LocatedLetter;
     ///
     /// let all_words = [Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
@@ -529,7 +529,7 @@ impl FromIterator<Rc<str>> for WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::WordTracker;
     ///
     /// let all_words = vec![Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
     /// let all_words_copy = all_words.clone();
@@ -551,7 +551,7 @@ impl<'a> FromIterator<&'a Rc<str>> for WordTracker {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::details::WordTracker;
+    /// use rs_wordle_solver::details::WordTracker;
     ///
     /// let all_words = vec![Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
     /// let tracker: WordTracker = all_words.iter().collect();
@@ -644,9 +644,9 @@ impl PrecomputedGuessResults {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wordle_solver::LetterResult;
-    /// use wordle_solver::details::CompressedGuessResult;
-    /// use wordle_solver::details::PrecomputedGuessResults;
+    /// use rs_wordle_solver::LetterResult;
+    /// use rs_wordle_solver::details::CompressedGuessResult;
+    /// use rs_wordle_solver::details::PrecomputedGuessResults;
     ///
     /// let all_words = vec![Rc::from("abb"), Rc::from("bcd")];
     /// let results = PrecomputedGuessResults::compute(&all_words).unwrap();

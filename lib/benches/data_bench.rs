@@ -2,8 +2,8 @@
 
 extern crate test;
 
-use wordle_solver::details::*;
-use wordle_solver::*;
+use rs_wordle_solver::details::*;
+use rs_wordle_solver::*;
 
 use std::fs::File;
 use std::io;

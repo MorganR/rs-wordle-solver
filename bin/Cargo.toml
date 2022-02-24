@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "3.0.13", features = ["derive"]}
-wordle-solver = { path = "../lib" }
+rs-wordle-solver = { path = "../lib" }

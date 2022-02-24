@@ -87,9 +87,9 @@ pub enum GameResult {
 /// Determines the result of the given `guess` when applied to the given `objective`.
 ///
 /// ```
-/// use wordle_solver::get_result_for_guess;
-/// use wordle_solver::GuessResult;
-/// use wordle_solver::LetterResult;
+/// use rs_wordle_solver::get_result_for_guess;
+/// use rs_wordle_solver::GuessResult;
+/// use rs_wordle_solver::LetterResult;
 ///
 /// let result = get_result_for_guess("mesas", "sassy");
 /// assert!(

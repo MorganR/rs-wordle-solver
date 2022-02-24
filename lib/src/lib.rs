@@ -5,7 +5,7 @@
 /// ### Solving a game in one function
 ///
 /// ```
-/// use wordle_solver::*;
+/// use rs_wordle_solver::*;
 ///
 /// // Construct a WordBank to select guesses from.
 /// let bank = WordBank::from_iterator(&["abc", "bcd", "def"])?;
@@ -23,7 +23,7 @@
 /// ### Solving a game interactively
 ///
 /// ```
-/// use wordle_solver::*;
+/// use rs_wordle_solver::*;
 ///
 /// // Construct a WordBank to select guesses from.
 /// let bank = WordBank::from_iterator(&["abc", "bcd", "def"])?;

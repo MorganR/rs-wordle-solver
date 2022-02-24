@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate assert_matches;
 
-use wordle_solver::*;
+use rs_wordle_solver::*;
 
 #[test]
 fn get_result_for_guess_correct() {
