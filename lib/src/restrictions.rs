@@ -2,10 +2,9 @@ use crate::data::LocatedLetter;
 use crate::results::GuessResult;
 use crate::results::LetterResult;
 use crate::results::WordleError;
-use std::cmp::min;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::btree_map::Entry;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::iter::zip;
 use std::result::Result;
 
@@ -46,16 +45,19 @@ impl PresentLetter {
 
     /// Returns whether the letter must be in, or not in, the given location, or if that is not yet
     /// known.
+    #[inline]
     pub fn state(&self, index: usize) -> LocatedLetterState {
         self.located_state[index]
     }
 
     /// Returns the required number of times this letter must appear in the word, if this is known.
+    #[inline(always)]
     pub fn maybe_required_count(&self) -> Option<u8> {
         self.maybe_required_count
     }
 
     /// Returns the minimum number of times this letter must appear in the word.
+    #[inline(always)]
     pub fn min_count(&self) -> u8 {
         self.min_count
     }
@@ -239,8 +241,8 @@ pub enum LetterRestriction {
 #[derive(PartialEq, Clone)]
 pub struct WordRestrictions {
     word_length: u8,
-    present_letters: HashMap<char, PresentLetter>,
-    not_present_letters: HashSet<char>,
+    present_letters: BTreeMap<char, PresentLetter>,
+    not_present_letters: BTreeSet<char>,
 }
 
 impl WordRestrictions {
@@ -248,8 +250,8 @@ impl WordRestrictions {
     pub fn new(word_length: u8) -> WordRestrictions {
         WordRestrictions {
             word_length,
-            present_letters: HashMap::with_capacity(min(word_length as usize, 26)),
-            not_present_letters: HashSet::new(),
+            present_letters: BTreeMap::new(),
+            not_present_letters: BTreeSet::new(),
         }
     }
 
