@@ -782,7 +782,8 @@ fn compute_and_send_guess_results(
     tx: mpsc::Sender<Result<Vec<WorkerComputedGuessResult>, WordleError>>,
 ) {
     let words_to_compute = &all_words[range_to_compute];
-    let mut results: Vec<WorkerComputedGuessResult> = Vec::with_capacity(words_to_compute.len());
+    let mut results: Vec<WorkerComputedGuessResult> =
+        Vec::with_capacity(words_to_compute.len() * all_words.len());
     for (objective_index, objective) in words_to_compute.iter() {
         for (guess_index, guess) in all_words.iter() {
             let uncompressed_guess_result =
