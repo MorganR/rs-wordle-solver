@@ -8,8 +8,6 @@ use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::result::Result;
-use std::sync::mpsc;
-use std::sync::mpsc::RecvError;
 use std::sync::Arc;
 use std::thread;
 
@@ -637,7 +635,7 @@ impl PrecomputedGuessResults {
         } else {
             match compute_guess_results_in_parallel(all_words, thread_count) {
                 Ok(result) => Ok(result),
-                Err(ParallelPrecomputeError::Threading(_)) => compute_guess_results(all_words),
+                Err(ParallelPrecomputeError::Threading) => compute_guess_results(all_words),
                 Err(ParallelPrecomputeError::Wordle(err)) => Err(err),
             }
         }
@@ -700,14 +698,14 @@ fn compute_guess_results(all_words: &[Rc<str>]) -> Result<PrecomputedGuessResult
 #[derive(Debug)]
 enum ParallelPrecomputeError {
     Wordle(WordleError),
-    Threading(RecvError),
+    Threading,
 }
 
 impl fmt::Display for ParallelPrecomputeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ParallelPrecomputeError::Wordle(err) => write!(f, "Wordle error: {}", err),
-            ParallelPrecomputeError::Threading(err) => write!(f, "Threading error: {:?}", err),
+            ParallelPrecomputeError::Threading => write!(f, "Threading error."),
         }
     }
 }
@@ -720,19 +718,15 @@ impl From<WordleError> for ParallelPrecomputeError {
     }
 }
 
-impl From<RecvError> for ParallelPrecomputeError {
-    fn from(err: RecvError) -> Self {
-        ParallelPrecomputeError::Threading(err)
-    }
-}
-
 fn compute_guess_results_in_parallel(
     all_words: &[Rc<str>],
     num_workers: usize,
 ) -> Result<PrecomputedGuessResults, ParallelPrecomputeError> {
-    let (tx, rx) = mpsc::channel();
     let num_words = all_words.len();
     let num_words_per_worker = num_words / num_workers;
+    let mut worker_handles: Vec<
+        thread::JoinHandle<Result<Vec<WorkerComputedGuessResult>, WordleError>>,
+    > = Vec::with_capacity(num_workers);
 
     let all_words_view: Vec<(usize, Arc<str>)> = all_words
         .iter()
@@ -748,9 +742,8 @@ fn compute_guess_results_in_parallel(
         if i == 0 {
             next_words_index += num_words % num_workers;
         }
-        let tx = tx.clone();
         thread::spawn(move || {
-            compute_and_send_guess_results(words_index..next_words_index, all_words_view, tx)
+            compute_and_send_guess_results(words_index..next_words_index, all_words_view)
         });
         words_index = next_words_index;
     }
@@ -758,8 +751,10 @@ fn compute_guess_results_in_parallel(
     let mut results_by_objective_guess_pair: HashMap<(Rc<str>, Rc<str>), CompressedGuessResult> =
         HashMap::with_capacity(num_words * num_words);
 
-    for _ in 0..num_workers {
-        let worker_results = rx.recv()??;
+    for handle in worker_handles {
+        let worker_results = handle
+            .join()
+            .map_err(|_| ParallelPrecomputeError::Threading)??;
         for worker_result in &worker_results {
             results_by_objective_guess_pair.insert(
                 (
@@ -779,40 +774,24 @@ fn compute_guess_results_in_parallel(
 fn compute_and_send_guess_results(
     range_to_compute: std::ops::Range<usize>,
     all_words: Vec<(usize, Arc<str>)>,
-    tx: mpsc::Sender<Result<Vec<WorkerComputedGuessResult>, WordleError>>,
-) {
+) -> Result<Vec<WorkerComputedGuessResult>, WordleError> {
     let words_to_compute = &all_words[range_to_compute];
     let mut results: Vec<WorkerComputedGuessResult> =
         Vec::with_capacity(words_to_compute.len() * all_words.len());
     for (objective_index, objective) in words_to_compute.iter() {
         for (guess_index, guess) in all_words.iter() {
             let uncompressed_guess_result =
-                get_result_for_guess(objective.as_ref(), guess.as_ref());
-            if uncompressed_guess_result.is_err() {
-                tx.send(Err(unsafe {
-                    uncompressed_guess_result.unwrap_err_unchecked()
-                }))
-                .expect("Channel is broken on send.");
-                return;
-            }
-            let compressed_guess_result = CompressedGuessResult::from_results(
-                &unsafe { uncompressed_guess_result.unwrap_unchecked() }.results,
-            );
-            if compressed_guess_result.is_err() {
-                tx.send(Err(unsafe {
-                    compressed_guess_result.unwrap_err_unchecked()
-                }))
-                .expect("Channel is broken on send.");
-                return;
-            }
+                get_result_for_guess(objective.as_ref(), guess.as_ref())?;
+            let compressed_guess_result =
+                CompressedGuessResult::from_results(&uncompressed_guess_result.results)?;
             results.push(WorkerComputedGuessResult {
                 objective_index: *objective_index,
                 guess_index: *guess_index,
-                guess_result: unsafe { compressed_guess_result.unwrap_unchecked() },
+                guess_result: compressed_guess_result,
             });
         }
     }
-    tx.send(Ok(results)).expect("Channel is broken on send.");
+    Ok(results)
 }
 
 struct WorkerComputedGuessResult {
