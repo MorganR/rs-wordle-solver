@@ -71,7 +71,6 @@ pub use results::*;
 pub mod details {
     pub use crate::data::CompressedGuessResult;
     pub use crate::data::LocatedLetter;
-    pub use crate::data::PrecomputedGuessResults;
     pub use crate::data::WordTracker;
     pub use crate::restrictions::*;
 }

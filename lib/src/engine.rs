@@ -620,7 +620,6 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// Guess from `AllUnguessedWords`: 3.78 +/- 0.65
 #[derive(Clone)]
 pub struct MaxEliminationsScorer {
-    guess_results: PrecomputedGuessResults,
     possible_words: Vec<Rc<str>>,
     previous_expected_eliminations_per_word: HashMap<Rc<str>, f64>,
     max_expected_eliminations: f64,
@@ -649,19 +648,16 @@ impl MaxEliminationsScorer {
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
     pub fn new(all_words: &[Rc<str>]) -> Result<MaxEliminationsScorer, WordleError> {
-        let guess_results = PrecomputedGuessResults::compute(all_words)?;
         let mut expected_eliminations_per_word: HashMap<Rc<str>, f64> = HashMap::new();
         let mut max_eliminations = 0.0;
         for word in all_words {
-            let expected_elimations =
-                compute_expected_eliminations(word, &guess_results, all_words);
+            let expected_elimations = compute_expected_eliminations(word, all_words);
             if expected_elimations > max_eliminations {
                 max_eliminations = expected_elimations;
             }
             expected_eliminations_per_word.insert(Rc::clone(word), expected_elimations);
         }
         Ok(MaxEliminationsScorer {
-            guess_results,
             possible_words: all_words.to_vec(),
             previous_expected_eliminations_per_word: expected_eliminations_per_word,
             max_expected_eliminations: max_eliminations,
@@ -675,28 +671,19 @@ impl MaxEliminationsScorer {
     }
 
     fn compute_expected_eliminations(&mut self, word: &Rc<str>) -> f64 {
-        compute_expected_eliminations(word, &self.guess_results, &self.possible_words)
+        compute_expected_eliminations(word, &self.possible_words)
     }
 }
 
-fn compute_expected_eliminations(
-    word: &Rc<str>,
-    guess_results: &PrecomputedGuessResults,
-    possible_words: &[Rc<str>],
-) -> f64 {
+fn compute_expected_eliminations(word: &Rc<str>, possible_words: &[Rc<str>]) -> f64 {
     let mut matching_results: HashMap<CompressedGuessResult, usize> = HashMap::new();
     for possible_word in possible_words {
-        let guess_result = guess_results
-            .get_result(possible_word, word)
-            .unwrap_or_else(|| {
-                // Unwrap the results since the word's validity should already be guaranteed.
-                CompressedGuessResult::from_results(
-                    &get_result_for_guess(possible_word.as_ref(), word.as_ref())
-                        .unwrap()
-                        .results,
-                )
+        let guess_result = CompressedGuessResult::from_results(
+            &get_result_for_guess(possible_word.as_ref(), word.as_ref())
                 .unwrap()
-            });
+                .results,
+        )
+        .unwrap();
         *matching_results.entry(guess_result).or_insert(0) += 1;
     }
     let num_possible_words = possible_words.len();

@@ -3,7 +3,11 @@ use rs_wordle_solver::*;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
+use std::io::BufRead;
+use std::num::NonZeroUsize;
 use std::result::Result;
+use std::sync::Arc;
+use std::thread;
 use std::time::Instant;
 
 /// Simple program to run a Wordle game in reverse, where the computer guesses the word.
@@ -80,7 +84,10 @@ impl Into<rs_wordle_solver::GuessFrom> for GuessFrom {
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Benchmark the solver against every word in the given words file.
-    Benchmark,
+    Benchmark {
+        /// The file of words to benchmark against.
+        bench_file: String,
+    },
     /// Run a single game with the given word.
     Single { word: String },
     /// Run an interactive game against the solver.
@@ -97,7 +104,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("There are {} possible words.", word_bank.len());
 
     match args.command {
-        Command::Benchmark => run_benchmark(&word_bank, args.guesser_impl, args.guess_from)?,
+        Command::Benchmark { bench_file } => {
+            run_benchmark(&word_bank, args.guesser_impl, args.guess_from, &bench_file)?
+        }
         Command::Single { word } => {
             play_single_game(&word, &word_bank, args.guesser_impl, args.guess_from)?
         }
@@ -118,69 +127,79 @@ fn run_benchmark(
     word_bank: &WordBank,
     guesser_impl: GuesserImpl,
     guess_from: GuessFrom,
+    bench_file: &str,
 ) -> Result<(), WordleError> {
     let mut num_guesses_per_game: Vec<u32> = Vec::new();
     let mut second_guess_count: HashMap<Box<str>, u32> = HashMap::new();
     let mut third_guess_count: HashMap<Box<str>, u32> = HashMap::new();
-    let word_counter = WordCounter::new(word_bank);
-    let max_eliminations_scorer = MaxEliminationsScorer::new(word_bank)?;
-    for word in word_bank.iter() {
-        let max_num_guesses = 128;
-        let result = match guesser_impl {
-            GuesserImpl::Random => {
-                play_game_with_guesser(word, max_num_guesses, RandomGuesser::new(word_bank))
-            }
-            GuesserImpl::UniqueLetterFrequency => play_game_with_guesser(
-                word,
-                max_num_guesses,
-                MaxScoreGuesser::new(
-                    guess_from.into(),
-                    word_bank,
-                    MaxUniqueLetterFrequencyScorer::new(word_counter.clone()),
-                ),
-            ),
-            GuesserImpl::LocatedLetters => play_game_with_guesser(
-                word,
-                max_num_guesses,
-                MaxScoreGuesser::new(
-                    guess_from.into(),
-                    word_bank,
-                    LocatedLettersScorer::new(word_bank, word_counter.clone()),
-                ),
-            ),
-            GuesserImpl::ApproximateEliminations => play_game_with_guesser(
-                word,
-                max_num_guesses,
-                MaxScoreGuesser::new(
-                    guess_from.into(),
-                    word_bank,
-                    MaxApproximateEliminationsScorer::new(word_counter.clone()),
-                ),
-            ),
-            GuesserImpl::MaxEliminations => play_game_with_guesser(
-                word,
-                max_num_guesses,
-                MaxScoreGuesser::new(
-                    guess_from.into(),
-                    word_bank,
-                    max_eliminations_scorer.clone(),
-                ),
-            ),
-        };
-        if let GameResult::Success(guesses) = result {
-            num_guesses_per_game.push(guesses.len() as u32);
-            if guesses.len() > 1 {
-                *second_guess_count.entry(guesses[1].clone()).or_default() += 1;
-                if guesses.len() > 2 {
-                    *third_guess_count.entry(guesses[2].clone()).or_default() += 1;
+    let bench_words_reader = io::BufReader::new(File::open(bench_file)?);
+    let bench_words = Arc::new(
+        bench_words_reader
+            .lines()
+            .map(|maybe_word| {
+                maybe_word
+                    .map_err(WordleError::from)
+                    .map(|word| Arc::from(word.to_lowercase().as_str()))
+            })
+            .filter(|maybe_word| {
+                maybe_word
+                    .as_ref()
+                    .map_or(true, |word: &Arc<str>| word.len() > 0)
+            })
+            .collect::<Result<Vec<Arc<str>>, WordleError>>()?,
+    );
+    let num_bench_words = bench_words.len();
+    let all_words: Arc<Vec<Arc<str>>> = Arc::new(
+        word_bank
+            .iter()
+            .map(|word| Arc::from(word.as_ref()))
+            .collect(),
+    );
+
+    let num_workers = thread::available_parallelism()
+        .map(NonZeroUsize::get)
+        .unwrap_or(1);
+    let mut worker_handles: Vec<thread::JoinHandle<Vec<GameResult>>> =
+        Vec::with_capacity(num_workers);
+    let words_per_worker = num_bench_words / num_workers;
+    let remaining_words = num_bench_words % num_workers;
+    let mut base_word_index = 0;
+
+    for i in 0..num_workers {
+        let mut next_word_index = base_word_index + words_per_worker;
+        if i == 0 {
+            next_word_index += remaining_words;
+        }
+        let bench_words_view = Arc::clone(&bench_words);
+        let all_words_view = Arc::clone(&all_words);
+
+        worker_handles.push(thread::spawn(move || {
+            benchmark_words(
+                &bench_words_view[base_word_index..next_word_index],
+                all_words_view,
+                guesser_impl,
+                guess_from,
+            )
+        }));
+        base_word_index = next_word_index;
+    }
+
+    for handle in worker_handles {
+        let results = handle.join().expect("Error on join.");
+        for result in results {
+            if let GameResult::Success(guesses) = result {
+                num_guesses_per_game.push(guesses.len() as u32);
+                if guesses.len() > 1 {
+                    *second_guess_count.entry(guesses[1].clone()).or_default() += 1;
+                    if guesses.len() > 2 {
+                        *third_guess_count.entry(guesses[2].clone()).or_default() += 1;
+                    }
                 }
             }
-            println!("Solved {} in {} guesses", word, guesses.len());
-        } else {
-            panic!("Failed to guess word: {}. Error: {:?}", word, result);
         }
     }
-    println!("Solved {} words. Results:", word_bank.len());
+
+    println!("Solved {} words. Results:", num_bench_words);
 
     let mut num_games_per_round: HashMap<u32, u32> = HashMap::new();
     for num_guesses in num_guesses_per_game.iter() {
@@ -223,6 +242,68 @@ fn run_benchmark(
     );
 
     Ok(())
+}
+
+fn benchmark_words(
+    words_to_bench: &[Arc<str>],
+    all_words: Arc<Vec<Arc<str>>>,
+    guesser_impl: GuesserImpl,
+    guess_from: GuessFrom,
+) -> Vec<GameResult> {
+    let word_bank: WordBank = WordBank::from_iterator(all_words.iter()).unwrap();
+    let mut results: Vec<GameResult> = Vec::with_capacity(words_to_bench.len());
+    let max_eliminations_scorer = MaxEliminationsScorer::new(&word_bank).unwrap();
+    for word in words_to_bench.iter() {
+        let max_num_guesses = 128;
+        let result = match guesser_impl {
+            GuesserImpl::Random => {
+                play_game_with_guesser(word, max_num_guesses, RandomGuesser::new(&word_bank))
+            }
+            GuesserImpl::UniqueLetterFrequency => play_game_with_guesser(
+                word,
+                max_num_guesses,
+                MaxScoreGuesser::new(
+                    guess_from.into(),
+                    &word_bank,
+                    MaxUniqueLetterFrequencyScorer::new(WordCounter::new(&word_bank)),
+                ),
+            ),
+            GuesserImpl::LocatedLetters => play_game_with_guesser(
+                word,
+                max_num_guesses,
+                MaxScoreGuesser::new(
+                    guess_from.into(),
+                    &word_bank,
+                    LocatedLettersScorer::new(&word_bank, WordCounter::new(&word_bank)),
+                ),
+            ),
+            GuesserImpl::ApproximateEliminations => play_game_with_guesser(
+                word,
+                max_num_guesses,
+                MaxScoreGuesser::new(
+                    guess_from.into(),
+                    &word_bank,
+                    MaxApproximateEliminationsScorer::new(WordCounter::new(&word_bank)),
+                ),
+            ),
+            GuesserImpl::MaxEliminations => play_game_with_guesser(
+                word,
+                max_num_guesses,
+                MaxScoreGuesser::new(
+                    guess_from.into(),
+                    &word_bank,
+                    max_eliminations_scorer.clone(),
+                ),
+            ),
+        };
+        if let GameResult::Success(guesses) = &result {
+            println!("Solved {} in {} guesses", word, guesses.len());
+        } else {
+            panic!("Failed to guess word: {}. Error: {:?}", word, result);
+        }
+        results.push(result);
+    }
+    results
 }
 
 fn print_top_n(guess_count: HashMap<Box<str>, u32>, n: usize) {
