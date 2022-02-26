@@ -592,7 +592,7 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// This probabilistically calculates the expectation value for how many words will be eliminated by
 /// each guess, and chooses the word that eliminates the most other guesses.
 ///
-/// This is a highly effective scoring strategy, but also extremely expensive to compute. On my
+/// This is a highly effective scoring strategy, but also quite expensive to compute. On my
 /// machine, constructing the scorer for about 4600 words takes about 9 seconds, but each
 /// subsequent game can be played in about 650ms if the scorer is then cloned before each game.
 ///
