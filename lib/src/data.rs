@@ -680,7 +680,7 @@ impl PrecomputedGuessResults {
 
 fn compute_guess_results(all_words: &[Rc<str>]) -> Result<PrecomputedGuessResults, WordleError> {
     let mut results_by_objective_guess_pair: HashMap<(Rc<str>, Rc<str>), CompressedGuessResult> =
-        HashMap::new();
+        HashMap::with_capacity(all_words.len() * all_words.len());
 
     for objective in all_words {
         for guess in all_words {
@@ -756,7 +756,7 @@ fn compute_guess_results_in_parallel(
     }
 
     let mut results_by_objective_guess_pair: HashMap<(Rc<str>, Rc<str>), CompressedGuessResult> =
-        HashMap::with_capacity(all_words.len() * all_words.len());
+        HashMap::with_capacity(num_words * num_words);
 
     for _ in 0..num_workers {
         let worker_results = rx.recv()??;
