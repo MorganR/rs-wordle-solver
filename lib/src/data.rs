@@ -1,10 +1,17 @@
 use crate::results::*;
 use std::collections::HashMap;
+use std::error::Error;
+use std::fmt;
 use std::hash::Hash;
 use std::io;
+use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::result::Result;
+use std::sync::mpsc;
+use std::sync::mpsc::RecvError;
+use std::sync::Arc;
+use std::thread;
 
 /// A letter along with its location in the word.
 ///
@@ -606,7 +613,7 @@ impl CompressedGuessResult {
 /// Precomputes and stores all the results for each (objective, guess) pair from a given set of
 /// words.
 ///
-/// Results are stored in a small form factor, but memory use scales according to
+/// Results are stored in a small form factor, but memory use still scales according to
 /// *O*(*n*<sup>2</sup>), where *n* is the number of words.
 #[derive(Clone)]
 pub struct PrecomputedGuessResults {
@@ -621,23 +628,19 @@ impl PrecomputedGuessResults {
     ///
     /// Words must be 10 characters or less.
     pub fn compute(all_words: &[Rc<str>]) -> Result<Self, WordleError> {
-        let mut results_by_objective_guess_pair: HashMap<
-            (Rc<str>, Rc<str>),
-            CompressedGuessResult,
-        > = HashMap::new();
-        for objective in all_words {
-            for guess in all_words {
-                results_by_objective_guess_pair.insert(
-                    (objective.clone(), guess.clone()),
-                    CompressedGuessResult::from_results(
-                        &get_result_for_guess(objective, guess)?.results,
-                    )?,
-                );
+        let thread_count = thread::available_parallelism()
+            .map(NonZeroUsize::get)
+            .unwrap_or(1);
+
+        if thread_count < 3 || all_words.len() < 100 {
+            compute_guess_results(all_words)
+        } else {
+            match compute_guess_results_in_parallel(all_words, thread_count) {
+                Ok(result) => Ok(result),
+                Err(ParallelPrecomputeError::Threading(_)) => compute_guess_results(all_words),
+                Err(ParallelPrecomputeError::Wordle(err)) => Err(err),
             }
         }
-        Ok(PrecomputedGuessResults {
-            results_by_objective_guess_pair,
-        })
     }
 
     /// Retrieves the result of applying the given guess to the given objective.
@@ -673,4 +676,146 @@ impl PrecomputedGuessResults {
             .get(&(objective.clone(), guess.clone()))
             .copied()
     }
+}
+
+fn compute_guess_results(all_words: &[Rc<str>]) -> Result<PrecomputedGuessResults, WordleError> {
+    let mut results_by_objective_guess_pair: HashMap<(Rc<str>, Rc<str>), CompressedGuessResult> =
+        HashMap::new();
+
+    for objective in all_words {
+        for guess in all_words {
+            results_by_objective_guess_pair.insert(
+                (objective.clone(), guess.clone()),
+                CompressedGuessResult::from_results(
+                    &get_result_for_guess(objective, guess)?.results,
+                )?,
+            );
+        }
+    }
+    Ok(PrecomputedGuessResults {
+        results_by_objective_guess_pair,
+    })
+}
+
+#[derive(Debug)]
+enum ParallelPrecomputeError {
+    Wordle(WordleError),
+    Threading(RecvError),
+}
+
+impl fmt::Display for ParallelPrecomputeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParallelPrecomputeError::Wordle(err) => write!(f, "Wordle error: {}", err),
+            ParallelPrecomputeError::Threading(err) => write!(f, "Threading error: {:?}", err),
+        }
+    }
+}
+
+impl Error for ParallelPrecomputeError {}
+
+impl From<WordleError> for ParallelPrecomputeError {
+    fn from(err: WordleError) -> Self {
+        ParallelPrecomputeError::Wordle(err)
+    }
+}
+
+impl From<RecvError> for ParallelPrecomputeError {
+    fn from(err: RecvError) -> Self {
+        ParallelPrecomputeError::Threading(err)
+    }
+}
+
+fn compute_guess_results_in_parallel(
+    all_words: &[Rc<str>],
+    num_workers: usize,
+) -> Result<PrecomputedGuessResults, ParallelPrecomputeError> {
+    let (tx, rx) = mpsc::channel();
+    let num_words = all_words.len();
+    let num_words_per_worker = num_words / num_workers;
+
+    let all_words_view: Vec<(usize, Arc<str>)> = all_words
+        .iter()
+        .enumerate()
+        .map(|(index, word)| (index, Arc::from(word.as_ref())))
+        .collect();
+
+    // Start workers.
+    let mut words_index = 0;
+    for i in 0..num_workers {
+        let all_words_view = all_words_view.clone();
+        let mut next_words_index = words_index + num_words_per_worker;
+        if i == 0 {
+            next_words_index += num_words % num_workers;
+        }
+        let tx = tx.clone();
+        thread::spawn(move || {
+            compute_and_send_guess_results(words_index..next_words_index, all_words_view, tx)
+        });
+        words_index = next_words_index;
+    }
+
+    let mut results_by_objective_guess_pair: HashMap<(Rc<str>, Rc<str>), CompressedGuessResult> =
+        HashMap::with_capacity(all_words.len() * all_words.len());
+
+    for _ in 0..num_workers {
+        let worker_results = rx.recv()??;
+        for worker_result in &worker_results {
+            results_by_objective_guess_pair.insert(
+                (
+                    Rc::clone(&all_words[worker_result.objective_index]),
+                    Rc::clone(&all_words[worker_result.guess_index]),
+                ),
+                worker_result.guess_result,
+            );
+        }
+    }
+
+    Ok(PrecomputedGuessResults {
+        results_by_objective_guess_pair,
+    })
+}
+
+fn compute_and_send_guess_results(
+    range_to_compute: std::ops::Range<usize>,
+    all_words: Vec<(usize, Arc<str>)>,
+    tx: mpsc::Sender<Result<Vec<WorkerComputedGuessResult>, WordleError>>,
+) {
+    let words_to_compute = &all_words[range_to_compute];
+    let mut results: Vec<WorkerComputedGuessResult> = Vec::with_capacity(words_to_compute.len());
+    for (objective_index, objective) in words_to_compute.iter() {
+        for (guess_index, guess) in all_words.iter() {
+            let uncompressed_guess_result =
+                get_result_for_guess(objective.as_ref(), guess.as_ref());
+            if uncompressed_guess_result.is_err() {
+                tx.send(Err(unsafe {
+                    uncompressed_guess_result.unwrap_err_unchecked()
+                }))
+                .expect("Channel is broken on send.");
+                return;
+            }
+            let compressed_guess_result = CompressedGuessResult::from_results(
+                &unsafe { uncompressed_guess_result.unwrap_unchecked() }.results,
+            );
+            if compressed_guess_result.is_err() {
+                tx.send(Err(unsafe {
+                    compressed_guess_result.unwrap_err_unchecked()
+                }))
+                .expect("Channel is broken on send.");
+                return;
+            }
+            results.push(WorkerComputedGuessResult {
+                objective_index: *objective_index,
+                guess_index: *guess_index,
+                guess_result: unsafe { compressed_guess_result.unwrap_unchecked() },
+            });
+        }
+    }
+    tx.send(Ok(results)).expect("Channel is broken on send.");
+}
+
+struct WorkerComputedGuessResult {
+    objective_index: usize,
+    guess_index: usize,
+    guess_result: CompressedGuessResult,
 }

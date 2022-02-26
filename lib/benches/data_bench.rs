@@ -80,3 +80,13 @@ fn bench_precomputed_guess_results_compute_100(b: &mut Bencher) -> Result<(), Wo
 
     Ok(())
 }
+
+#[bench]
+fn bench_precomputed_guess_results_compute_1000(b: &mut Bencher) -> Result<(), WordleError> {
+    let words_reader = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+    let bank = WordBank::from_reader(words_reader)?;
+
+    b.iter(|| PrecomputedGuessResults::compute(&bank));
+
+    Ok(())
+}

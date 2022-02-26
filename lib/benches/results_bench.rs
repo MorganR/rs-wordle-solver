@@ -2,8 +2,8 @@
 
 extern crate test;
 
-use test::Bencher;
 use rs_wordle_solver::*;
+use test::Bencher;
 
 #[bench]
 fn bench_get_result_for_guess_correct(b: &mut Bencher) {

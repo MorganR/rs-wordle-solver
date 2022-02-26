@@ -1,10 +1,10 @@
 use clap::{Parser, Subcommand};
+use rs_wordle_solver::*;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::result::Result;
 use std::time::Instant;
-use rs_wordle_solver::*;
 
 /// Simple program to run a Wordle game in reverse, where the computer guesses the word.
 #[derive(Parser, Debug)]
