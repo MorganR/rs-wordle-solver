@@ -139,9 +139,12 @@ fn play_game_with_known_word_random() -> Result<(), WordleError> {
     let bank = create_word_bank(vec!["abcz", "weyz", "defy", "ghix"])?;
     let guesser = RandomGuesser::new(&bank);
 
-    if let GameResult::Success(guesses) = play_game_with_guesser("abcz", 10, guesser) {
-        assert!(guesses.len() < 10);
-        assert_eq!(guesses.iter().last(), Some(&Box::from("abcz")));
+    if let GameResult::Success(data) = play_game_with_guesser("abcz", 10, guesser) {
+        assert!(data.turns.len() < 10);
+        assert_eq!(
+            data.turns.iter().map(|turn| &turn.guess).last(),
+            Some(&Box::from("abcz"))
+        );
     } else {
         assert!(false);
     }
@@ -167,9 +170,12 @@ fn play_game_with_known_word_max_eliminations() -> Result<(), WordleError> {
     let scorer = MaxEliminationsScorer::new(&bank).unwrap();
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
-    if let GameResult::Success(guesses) = play_game_with_guesser("abcz", 10, guesser) {
-        assert!(guesses.len() < 10);
-        assert_eq!(guesses.iter().last(), Some(&Box::from("abcz")));
+    if let GameResult::Success(data) = play_game_with_guesser("abcz", 10, guesser) {
+        assert!(data.turns.len() < 10);
+        assert_eq!(
+            data.turns.iter().map(|turn| &turn.guess).last(),
+            Some(&Box::from("abcz"))
+        );
     } else {
         assert!(false);
     }
@@ -182,9 +188,13 @@ fn play_game_takes_too_many_guesses() -> Result<(), WordleError> {
     let scorer = MaxUniqueLetterFrequencyScorer::new(WordCounter::new(&bank));
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
-    if let GameResult::Failure(guesses) = play_game_with_guesser("abcz", 1, guesser) {
-        assert_eq!(guesses.len(), 1);
-        assert!(!guesses.contains(&Box::from("abcz")));
+    if let GameResult::Failure(data) = play_game_with_guesser("abcz", 1, guesser) {
+        assert_eq!(data.turns.len(), 1);
+        assert!(!data
+            .turns
+            .iter()
+            .map(|turn| &turn.guess)
+            .any(|guess| guess == &Box::from("abcz")));
     } else {
         assert!(false);
     }

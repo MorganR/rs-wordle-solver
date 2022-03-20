@@ -72,14 +72,30 @@ pub struct GuessResult<'a> {
     pub results: Vec<LetterResult>,
 }
 
+/// Data about a single turn of a Wordle game.
+#[derive(Debug, PartialEq)]
+pub struct TurnData {
+    /// The guess that was made this turn.
+    pub guess: Box<str>,
+    /// The number of possible words that remained at the start of this turn.
+    pub num_possible_words_before_guess: usize,
+}
+
+/// The data from a game that was played.
+#[derive(Debug, PartialEq)]
+pub struct GameData {
+    /// Data for each turn that was played.
+    pub turns: Vec<TurnData>,
+}
+
 /// Whether the game was won or lost by the guesser.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum GameResult {
     /// Indicates that the guesser won the game, and provides the guesses that were given.
-    Success(Vec<Box<str>>),
+    Success(GameData),
     /// Indicates that the guesser failed to guess the word under the guess limit, and provides the
     /// guesses that were given.
-    Failure(Vec<Box<str>>),
+    Failure(GameData),
     /// Indicates that the given word was not in the guesser's word bank.
     UnknownWord,
 }

@@ -39,6 +39,7 @@ enum GuesserImpl {
     LocatedLetters,
     ApproximateEliminations,
     MaxEliminations,
+    MaxComboEliminations,
 }
 
 impl std::str::FromStr for GuesserImpl {
@@ -50,7 +51,8 @@ impl std::str::FromStr for GuesserImpl {
             "located_letters" => Ok(GuesserImpl::LocatedLetters),
             "approx_eliminations" => Ok(GuesserImpl::ApproximateEliminations),
             "max_eliminations" => Ok(GuesserImpl::MaxEliminations),
-            _ => Err(String::from("Valid guesser implementations are: 'approx_eliminations', 'located_letters', 'max_eliminations', 'random', 'unique_letters', and 'unique_unguessed_letters'."))
+            "max_combo_eliminations" => Ok(GuesserImpl::MaxComboEliminations),
+            _ => Err(String::from("Valid guesser implementations are: 'approx_eliminations', 'located_letters', 'max_eliminations', 'max_combo_eliminations', 'random', 'unique_letters', and 'unique_unguessed_letters'."))
         }
     }
 }
@@ -184,15 +186,73 @@ fn run_benchmark(
         base_word_index = next_word_index;
     }
 
+    let mut first_guess: Box<str> = Box::from("");
+    let possible_word_buckets = vec![1, 2, 4, 8, 16, 32, 64, 96, 128, 256, 512, 1024, 2048];
+    let mut possible_words_count_0 = vec![0; 13];
+    let mut possible_words_count_1 = vec![0; 13];
+    let mut possible_words_count_2 = vec![0; 13];
+    let mut possible_words_count_3 = vec![0; 13];
+    let mut possible_words_count_0_from_end = vec![0; 13];
+    let mut possible_words_count_1_from_end = vec![0; 13];
+    let mut possible_words_count_2_from_end = vec![0; 13];
+    let mut possible_words_count_3_from_end = vec![0; 13];
     for handle in worker_handles {
         let results = handle.join().expect("Error on join.");
         for result in results {
-            if let GameResult::Success(guesses) = result {
-                num_guesses_per_game.push(guesses.len() as u32);
-                if guesses.len() > 1 {
-                    *second_guess_count.entry(guesses[1].clone()).or_default() += 1;
-                    if guesses.len() > 2 {
-                        *third_guess_count.entry(guesses[2].clone()).or_default() += 1;
+            if let GameResult::Success(data) = result {
+                num_guesses_per_game.push(data.turns.len() as u32);
+                first_guess = data.turns[0].guess.clone();
+                if data.turns.len() > 1 {
+                    *second_guess_count
+                        .entry(data.turns[1].guess.clone())
+                        .or_default() += 1;
+                    if data.turns.len() > 2 {
+                        *third_guess_count
+                            .entry(data.turns[2].guess.clone())
+                            .or_default() += 1;
+                    }
+                }
+                for (index, num_possible_words) in data
+                    .turns
+                    .iter()
+                    .map(|turn| turn.num_possible_words_before_guess)
+                    .enumerate()
+                {
+                    let bucket_index = possible_word_buckets
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, bucket_min)| **bucket_min <= num_possible_words)
+                        .map(|(bucket_index, _)| bucket_index)
+                        .last()
+                        .unwrap();
+                    match index {
+                        0 => possible_words_count_0[bucket_index] += 1,
+                        1 => possible_words_count_1[bucket_index] += 1,
+                        2 => possible_words_count_2[bucket_index] += 1,
+                        3 => possible_words_count_3[bucket_index] += 1,
+                        _ => break,
+                    }
+                }
+                for (index, num_possible_words) in data
+                    .turns
+                    .iter()
+                    .rev()
+                    .map(|turn| turn.num_possible_words_before_guess)
+                    .enumerate()
+                {
+                    let bucket_index = possible_word_buckets
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, bucket_min)| **bucket_min <= num_possible_words)
+                        .map(|(bucket_index, _)| bucket_index)
+                        .last()
+                        .unwrap();
+                    match index {
+                        0 => possible_words_count_0_from_end[bucket_index] += 1,
+                        1 => possible_words_count_1_from_end[bucket_index] += 1,
+                        2 => possible_words_count_2_from_end[bucket_index] += 1,
+                        3 => possible_words_count_3_from_end[bucket_index] += 1,
+                        _ => break,
                     }
                 }
             }
@@ -218,6 +278,73 @@ fn run_benchmark(
         );
     }
 
+    println!("\nNum possible words remaining:");
+
+    println!("\nFrom round 0:");
+    println!("Round 0:");
+    println!("|Min word count|Num games|");
+    println!("|--------------|---------|");
+    for (bucket, count) in possible_word_buckets.iter().zip(&possible_words_count_0) {
+        println!("|{}|{}|", bucket, count);
+    }
+    println!("Round 1:");
+    println!("|Min word count|Num games|");
+    println!("|--------------|---------|");
+    for (bucket, count) in possible_word_buckets.iter().zip(&possible_words_count_1) {
+        println!("|{}|{}|", bucket, count);
+    }
+    println!("Round 2:");
+    println!("|Min word count|Num games|");
+    println!("|--------------|---------|");
+    for (bucket, count) in possible_word_buckets.iter().zip(&possible_words_count_2) {
+        println!("|{}|{}|", bucket, count);
+    }
+    println!("Round 3:");
+    println!("|Min word count|Num games|");
+    println!("|--------------|---------|");
+    for (bucket, count) in possible_word_buckets.iter().zip(&possible_words_count_3) {
+        println!("|{}|{}|", bucket, count);
+    }
+
+    println!("\nFrom the final guess:");
+    println!("Final round:");
+    println!("|Min word count|Num games|");
+    println!("|--------------|---------|");
+    for (bucket, count) in possible_word_buckets
+        .iter()
+        .zip(&possible_words_count_0_from_end)
+    {
+        println!("|{}|{}|", bucket, count);
+    }
+    println!("Final round - 1:");
+    println!("|Min word count|Num games|");
+    println!("|--------------|---------|");
+    for (bucket, count) in possible_word_buckets
+        .iter()
+        .zip(&possible_words_count_1_from_end)
+    {
+        println!("|{}|{}|", bucket, count);
+    }
+    println!("Final round - 2:");
+    println!("|Min word count|Num games|");
+    println!("|--------------|---------|");
+    for (bucket, count) in possible_word_buckets
+        .iter()
+        .zip(&possible_words_count_2_from_end)
+    {
+        println!("|{}|{}|", bucket, count);
+    }
+    println!("Final round - 3:");
+    println!("|Min word count|Num games|");
+    println!("|--------------|---------|");
+    for (bucket, count) in possible_word_buckets
+        .iter()
+        .zip(&possible_words_count_3_from_end)
+    {
+        println!("|{}|{}|", bucket, count);
+    }
+
+    println!("First guess: {}", first_guess);
     println!("Top second guesses:");
     print_top_n(second_guess_count, 10);
     println!("Top third guesses:");
@@ -252,7 +379,16 @@ fn benchmark_words(
 ) -> Vec<GameResult> {
     let word_bank: WordBank = WordBank::from_iterator(all_words.iter()).unwrap();
     let mut results: Vec<GameResult> = Vec::with_capacity(words_to_bench.len());
-    let max_eliminations_scorer = MaxEliminationsScorer::new(&word_bank).unwrap();
+    let maybe_max_eliminations_scorer = match guesser_impl {
+        GuesserImpl::MaxEliminations => Some(MaxEliminationsScorer::new(&word_bank).unwrap()),
+        _ => None,
+    };
+    let maybe_max_combo_eliminations_scorer = match guesser_impl {
+        GuesserImpl::MaxComboEliminations => {
+            Some(MaxComboEliminationsScorer::new(&word_bank).unwrap())
+        }
+        _ => None,
+    };
     for word in words_to_bench.iter() {
         let max_num_guesses = 128;
         let result = match guesser_impl {
@@ -292,12 +428,24 @@ fn benchmark_words(
                 MaxScoreGuesser::new(
                     guess_from.into(),
                     &word_bank,
-                    max_eliminations_scorer.clone(),
+                    maybe_max_eliminations_scorer.as_ref().unwrap().clone(),
+                ),
+            ),
+            GuesserImpl::MaxComboEliminations => play_game_with_guesser(
+                word,
+                max_num_guesses,
+                MaxScoreGuesser::new(
+                    guess_from.into(),
+                    &word_bank,
+                    maybe_max_combo_eliminations_scorer
+                        .as_ref()
+                        .unwrap()
+                        .clone(),
                 ),
             ),
         };
-        if let GameResult::Success(guesses) = &result {
-            println!("Solved {} in {} guesses", word, guesses.len());
+        if let GameResult::Success(data) = &result {
+            println!("Solved {} in {} guesses", word, data.turns.len());
         } else {
             panic!("Failed to guess word: {}. Error: {:?}", word, result);
         }
@@ -374,20 +522,29 @@ fn play_single_game(
                 MaxEliminationsScorer::new(word_bank)?,
             ),
         ),
+        GuesserImpl::MaxComboEliminations => play_game_with_guesser(
+            word,
+            max_num_guesses,
+            MaxScoreGuesser::new(
+                guess_from.into(),
+                word_bank,
+                MaxComboEliminationsScorer::new(word_bank)?,
+            ),
+        ),
     };
     match result {
-        GameResult::Success(guesses) => {
-            println!("Solved it! It took me {} guesses.", guesses.len());
-            for guess in guesses.iter() {
+        GameResult::Success(data) => {
+            println!("Solved it! It took me {} guesses.", data.turns.len());
+            for guess in data.turns.iter().map(|turn| &turn.guess) {
                 println!("\t{}", guess);
             }
         }
-        GameResult::Failure(guesses) => {
+        GameResult::Failure(data) => {
             println!(
                 "I still couldn't solve it after {} guesses :(",
-                guesses.len()
+                data.turns.len()
             );
-            for guess in guesses.iter() {
+            for guess in data.turns.iter().map(|turn| &turn.guess) {
                 println!("\t{}", guess);
             }
         }
@@ -430,6 +587,13 @@ fn play_interactive_game(
             word_bank,
             MaxEliminationsScorer::new(word_bank)?,
         )),
+        GuesserImpl::MaxComboEliminations => {
+            play_interactive_game_with_guesser(MaxScoreGuesser::new(
+                guess_from.into(),
+                word_bank,
+                MaxComboEliminationsScorer::new(word_bank)?,
+            ))
+        }
     }
     .map_err(Box::from)
 }

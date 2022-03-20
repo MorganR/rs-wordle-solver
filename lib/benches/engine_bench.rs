@@ -88,9 +88,7 @@ fn bench_located_letters_improved_words(b: &mut Bencher) -> Result<(), WordleErr
 }
 
 #[bench]
-fn bench_max_approximate_eliminations_improved_words(
-    b: &mut Bencher,
-) -> Result<(), WordleError> {
+fn bench_max_approximate_eliminations_improved_words(b: &mut Bencher) -> Result<(), WordleError> {
     let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
     let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
@@ -145,7 +143,11 @@ fn bench_max_eliminations_scorer_no_precompute_improved_words(
 
     b.iter(|| {
         let test_word = test_word_iter.next().unwrap();
-        let guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, MaxEliminationsScorer::new(&bank).unwrap());
+        let guesser = MaxScoreGuesser::new(
+            GuessFrom::AllUnguessedWords,
+            &bank,
+            MaxEliminationsScorer::new(&bank).unwrap(),
+        );
         return play_game_with_guesser(test_word, 128, guesser);
     });
 
