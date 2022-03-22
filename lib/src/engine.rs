@@ -742,6 +742,7 @@ pub struct MaxComboEliminationsScorer {
     possible_words: Vec<Rc<str>>,
     previous_expected_eliminations_per_word: HashMap<Rc<str>, f64>,
     max_expected_eliminations: f64,
+    min_possible_words_for_combo: usize,
 }
 
 impl MaxComboEliminationsScorer {
@@ -751,7 +752,10 @@ impl MaxComboEliminationsScorer {
     /// cloning a new version of the scorer for each game.
     ///
     /// The cost of this function scales in approximately *O*(*n*<sup>3</sup>), where *n* is the
-    /// number of words.
+    /// number of words in `all_words`. `min_possible_words_for_combo` indicates the threshold at
+    /// which this scorer will only score words for the max eliminations on a single guess (i.e.
+    /// [`MaxEliminationsScorer`] behavior) instead of calculating the expected eliminations in
+    /// combination with a subsequent guess.
     ///
     /// ```
     /// use rs_wordle_solver::GuessFrom;
@@ -766,12 +770,16 @@ impl MaxComboEliminationsScorer {
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
-    pub fn new(all_words: &[Rc<str>]) -> Result<MaxComboEliminationsScorer, WordleError> {
+    pub fn new(
+        all_words: &[Rc<str>],
+        min_possible_words_for_combo: usize,
+    ) -> Result<MaxComboEliminationsScorer, WordleError> {
         let mut scorer = MaxComboEliminationsScorer {
             all_words: all_words.iter().map(Rc::clone).collect(),
             possible_words: all_words.iter().map(Rc::clone).collect(),
             previous_expected_eliminations_per_word: HashMap::new(),
             max_expected_eliminations: 0.0,
+            min_possible_words_for_combo,
         };
         for word in all_words {
             let expected_elimations = scorer.compute_expected_eliminations(word);
@@ -792,7 +800,7 @@ impl MaxComboEliminationsScorer {
     }
 
     fn compute_expected_eliminations(&self, word: &Rc<str>) -> f64 {
-        if self.possible_words.len() > 100 {
+        if self.possible_words.len() > self.min_possible_words_for_combo {
             self.compute_expected_combo_eliminations(word)
         } else {
             compute_expected_eliminations(word, &self.possible_words)

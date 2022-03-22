@@ -385,7 +385,7 @@ fn benchmark_words(
     };
     let maybe_max_combo_eliminations_scorer = match guesser_impl {
         GuesserImpl::MaxComboEliminations => {
-            Some(MaxComboEliminationsScorer::new(&word_bank).unwrap())
+            Some(MaxComboEliminationsScorer::new(&word_bank, 1000).unwrap())
         }
         _ => None,
     };
@@ -528,7 +528,7 @@ fn play_single_game(
             MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxComboEliminationsScorer::new(word_bank)?,
+                MaxComboEliminationsScorer::new(word_bank, 1000)?,
             ),
         ),
     };
@@ -591,7 +591,7 @@ fn play_interactive_game(
             play_interactive_game_with_guesser(MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxComboEliminationsScorer::new(word_bank)?,
+                MaxComboEliminationsScorer::new(word_bank, 1000)?,
             ))
         }
     }

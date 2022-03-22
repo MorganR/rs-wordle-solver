@@ -196,10 +196,10 @@ and therefore less effective, than using the precise counts computed by `MaxElim
 ### MaxEliminationsScorer
 
 This probabilistically calculates the expectation value for how many words will be eliminated by 
-each guess, and chooses the word that eliminates the most other guesses. This is extremely expensive
-to compute, so it precomputes as much as possible when the scorer is first created. On my machine, 
-constructing the scorer takes about 9 seconds, but this enables each subsequent game to be played 
-in about 650ms.
+each guess, and chooses the word that eliminates the most other guesses. This is relatively
+expensive to compute, so it precomputes as much as possible when the scorer is first created. On my
+machine, constructing the scorer with the improved-words list takes about 1.3 seconds, but this
+enables each subsequent game to be played in about 27ms.
 
 **GuessFrom::PossibleWords**
 
@@ -232,6 +232,61 @@ in about 650ms.
 
 **Average number of guesses:** 3.78 +/- 0.65
 
+When benchmarked against the wordle answers using the improved-words list as a word bank, the
+results are:
+
+|Num guesses|Num games|
+|-----------|---------|
+|2|23|
+|3|777|
+|4|1364|
+|5|148|
+|6|3|
+
+**Average number of guesses:** 3.71 +/- 0.60 (time taken: 20.6 seconds)
+
+### MaxComboEliminationsScorer
+
+This extends the `MaxEliminationsScorer` to choose the word that should maximize the number of
+eliminated words across the next two guesses, as long as there are more than a specifiable limit
+of possible words. We'll call this the `combo limit`. Once there are fewer than the `combo limit`
+possible words left, this falls back to the `MaxEliminationsScorer` behavior.
+
+The theory behind this scorer was that, since most words take at least 3 guesses, the scorer should
+try to eliminate the most possible words collectively in the first two guesses. This could perform
+differently from choosing the best individual word per round, as is done in
+`MaxEliminationsScorer`. Empirically, it seems to perform worse (see below).
+
+This is **extremely expensive** to compute, as it scales in approximately *O*(*n*<super>3</super>)
+where `n` is the number of words in the word bank. Similar to `MaxEliminationScorer`, it
+precomputes the first guess, which takes *hours*. For that reason, this was only benchmarked
+against the wordle answers using the improved-words list as a word bank. It was benchmarked in two
+configurations: setting the `combo limit` to 100, and setting the `combo limit` to 1000.
+
+**Combo limit: 100**
+
+|Num guesses|Num games|
+|-----------|---------|
+|2|19|
+|3|654|
+|4|1414|
+|5|222|
+|6|6|
+
+**Average number of guesses:** 3.80 +/- 0.62 (time taken: 41 hours 12 minutes)
+
+**Combo limit: 1000**
+
+|Num guesses|Num games|
+|-----------|---------|
+|2|20|
+|3|719|
+|4|1410|
+|5|163|
+|6|3|
+
+**Average number of guesses:** 3.75 +/- 0.60 (time taken: 6 hours 14 minutes)
+
 ## Speed Benchmark
 
 ### RandomGuesser
@@ -244,23 +299,28 @@ test bench_guess_random_wordle_words   ... bench:     271,783 ns/iter (+/- 26,41
 ### MaxUniqueLetterFrequencyScorer
 
 ```
-test bench_unique_letters_improved_words ... bench:   1,124,631 ns/iter (+/- 152,674)
+test bench_unique_letters_improved_words                        ... bench:   1,414,721 ns/iter (+/- 177,899)
 ```
 
 ### LocatedLettersScorer
 
 ```
-test bench_located_letters_improved_words ... bench:   2,139,709 ns/iter (+/- 399,150)
+test bench_located_letters_improved_words                       ... bench:   2,035,637 ns/iter (+/- 387,882)
 ```
 
 ### MaxApproximateEliminationsScorer
 
 ```
-test bench_max_approximate_eliminations_random_improved_words ... bench:   2,215,908 ns/iter (+/- 379,109)
+test bench_max_approximate_eliminations_improved_words          ... bench:   2,378,306 ns/iter (+/- 399,961)
 ```
 
 ### MaxEliminationsScorer
 
 ```
-test bench_max_eliminations_scorer_precomputed_random_improved_words ... bench: 655,816,300 ns/iter (+/- 107,276,732)
+test bench_max_eliminations_scorer_no_precompute_improved_words ... bench: 1,384,103,132 ns/iter (+/- 39,615,208)
+test bench_max_eliminations_scorer_precomputed_improved_words   ... bench:  27,068,036 ns/iter (+/- 32,937,953)
 ```
+
+### MaxComboEliminationsScorer
+
+Precompute takes roughly: ?
