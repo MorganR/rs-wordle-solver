@@ -635,8 +635,8 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 #[derive(Clone)]
 pub struct MaxEliminationsScorer {
     possible_words: Vec<Rc<str>>,
-    previous_expected_eliminations_per_word: HashMap<Rc<str>, f64>,
-    max_expected_eliminations: f64,
+    first_expected_eliminations_per_word: HashMap<Rc<str>, f64>,
+    is_first_round: bool,
 }
 
 impl MaxEliminationsScorer {
@@ -663,25 +663,15 @@ impl MaxEliminationsScorer {
     /// ```
     pub fn new(all_words: &[Rc<str>]) -> Result<MaxEliminationsScorer, WordleError> {
         let mut expected_eliminations_per_word: HashMap<Rc<str>, f64> = HashMap::new();
-        let mut max_eliminations = 0.0;
         for word in all_words {
             let expected_elimations = compute_expected_eliminations(word, all_words);
-            if expected_elimations > max_eliminations {
-                max_eliminations = expected_elimations;
-            }
             expected_eliminations_per_word.insert(Rc::clone(word), expected_elimations);
         }
         Ok(MaxEliminationsScorer {
             possible_words: all_words.to_vec(),
-            previous_expected_eliminations_per_word: expected_eliminations_per_word,
-            max_expected_eliminations: max_eliminations,
+            first_expected_eliminations_per_word: expected_eliminations_per_word,
+            is_first_round: true,
         })
-    }
-
-    fn can_skip(&self, word: &Rc<str>) -> bool {
-        self.previous_expected_eliminations_per_word
-            .get(word)
-            .map_or(false, |previous| *previous < self.max_expected_eliminations)
     }
 
     fn compute_expected_eliminations(&mut self, word: &Rc<str>) -> f64 {
@@ -716,20 +706,17 @@ impl WordScorer for MaxEliminationsScorer {
         possible_words: &[Rc<str>],
     ) -> Result<(), WordleError> {
         self.possible_words = possible_words.to_vec();
-        self.max_expected_eliminations = 0.0;
+        self.is_first_round = false;
         Ok(())
     }
 
     fn score_word(&mut self, word: &Rc<str>) -> i64 {
-        if self.can_skip(word) {
-            return 0;
+        if self.is_first_round {
+           if let Some(expected_elimations) = self.first_expected_eliminations_per_word.get(word) {
+               return (expected_elimations * 1000.0) as i64
+           } 
         }
         let expected_elimations = self.compute_expected_eliminations(word);
-        if expected_elimations > self.max_expected_eliminations {
-            self.max_expected_eliminations = expected_elimations;
-        }
-        self.previous_expected_eliminations_per_word
-            .insert(Rc::clone(word), expected_elimations);
         (expected_elimations * 1000.0) as i64
     }
 }
