@@ -323,4 +323,4 @@ test bench_max_eliminations_scorer_precomputed_improved_words   ... bench:  27,0
 
 ### MaxComboEliminationsScorer
 
-Precompute takes roughly: ?
+Precompute on improved words takes roughly: 5 hours 45 minutes

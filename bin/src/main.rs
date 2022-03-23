@@ -379,6 +379,7 @@ fn benchmark_words(
 ) -> Vec<GameResult> {
     let word_bank: WordBank = WordBank::from_iterator(all_words.iter()).unwrap();
     let mut results: Vec<GameResult> = Vec::with_capacity(words_to_bench.len());
+    let preconstruction_start = Instant::now();
     let maybe_max_eliminations_scorer = match guesser_impl {
         GuesserImpl::MaxEliminations => Some(MaxEliminationsScorer::new(&word_bank).unwrap()),
         _ => None,
@@ -389,6 +390,7 @@ fn benchmark_words(
         }
         _ => None,
     };
+    println!("Scorer preconstruction took: {}s", preconstruction_start.elapsed().as_secs_f64());
     for word in words_to_bench.iter() {
         let max_num_guesses = 128;
         let result = match guesser_impl {
