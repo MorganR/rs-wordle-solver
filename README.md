@@ -1,25 +1,32 @@
-# wordle-solver
+# rs-wordle-solver
 
-An automated solver for the popular game: [Wordle](https://www.nytimes.com/games/wordle/index.html)
+An automated solving library for the popular game: [Wordle](https://www.nytimes.com/games/wordle/index.html)
 
-## Available words
+## How to use it?
 
-This library has several word lists:
+See the docs.
 
-*  `data/wordle-words.txt`: this list is the combination of all possible guesses and all answer
-   words from [Wordle](https://www.powerlanguage.co.uk/wordle/). Many of the allowed Wordle guesses
-   are pretty much nonsense, so there is also:
+## Solve efficiency benchmarks
 
-*  `data/improved-words.txt`: this list combines all 5-letter words from the [Corncob list of more
-   than 58,000 English words](http://www.mieliestronk.com/wordlist.html), the
-   [MIT 10000 English words list](https://www.mit.edu/~ecprice/wordlist.10000), and any remaining
-   Wordle answer words.
+Different guessing algorithms have been benchmarked against a few word lists:
 
-*  A random set of 1000 words taken from each list.
+*  `wordle-answers.txt`: this list is the all answer words from
+   [Wordle](https://www.nytimes.com/games/wordle/index.html) before it was purchased by the New
+   York Times.
 
-## Guesses Benchmark
+*  `improved-words.txt`: this list combines all 5-letter words from the [Corncob list of more than
+   58,000 English words](http://www.mieliestronk.com/wordlist.html), the [MIT 10000 English words
+   list](https://www.mit.edu/~ecprice/wordlist.10000), and any remaining Wordle answer words. This
+   is often used instead of the full wordle word list, as many allowed Wordle words seem to be
+   somewhat nonsensical.
 
-When benchmarked against the whole *improved* words list:
+Most algorithms have been benchmarked against the whole *improved* words list. Some algorithms run
+in two configurations:
+
+1.  guessing from `PossibleWords`, i.e. only guessing words that are still possible. This is
+    equivalent to Wordle's "hard" mode. 
+2.  guessing from `AllUnguessedWords`, including words that can't be the answer. This is usually
+    better as the algorithms are able to eliminate more words faster.
 
 ### RandomGuesser
 
@@ -198,7 +205,7 @@ and therefore less effective, than using the precise counts computed by `MaxElim
 This probabilistically calculates the expectation value for how many words will be eliminated by 
 each guess, and chooses the word that eliminates the most other guesses. This is relatively
 expensive to compute, so it precomputes as much as possible when the scorer is first created. On my
-machine, constructing the scorer with the improved-words list takes about 1.3 seconds, but this
+machine, constructing the scorer with the improved-words list takes about 1.4 seconds, but this
 enables each subsequent game to be played in about 27ms.
 
 **GuessFrom::PossibleWords**
@@ -287,7 +294,7 @@ configurations: setting the `combo limit` to 100, and setting the `combo limit` 
 
 **Average number of guesses:** 3.75 +/- 0.60 (time taken: 6 hours 14 minutes)
 
-## Speed Benchmark
+## Speed benchmarks
 
 ### RandomGuesser
 
