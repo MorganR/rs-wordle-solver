@@ -4,7 +4,7 @@ authors = [
 ]
 description = "A library for solving Wordle-style puzzles. It provides multiple guessing algorithms, as well as building blocks for implementing your own Wordle solving algorithms."
 edition = "2021"
-keywords = ["wordle", "solver", "puzzle", "puzzles", "solution", "word guesser", "solve wordle", "solve wordles", "wordle guesser", "wordle guess"]
+keywords = ["wordle", "solver", "puzzle", "solution", "word", "game", "guess", "guesser", "solve"]
 name = "rs-wordle-solver"
 readme = "../README.md"
 repository = "https://github.com/MorganR/rs-wordle-solver"
