@@ -54,8 +54,8 @@
 //! algorithms.
 //!
 //! If you want to implement your own algorithm, the easiest place to start is likely by
-//! implementing the [`WordScorer`] trait, and using this with [`MaxScoreGuesser`]. There are
-//! additional helpful utilities for implementing your own algorithms in the [`details`] mod.
+//! implementing the [`scorers::WordScorer`] trait, and using this with [`MaxScoreGuesser`]. There
+//! are additional helpful utilities for implementing your own algorithms in the [`details`] mod.
 
 mod data;
 mod engine;
@@ -63,15 +63,21 @@ mod restrictions;
 mod results;
 
 pub use data::WordBank;
-pub use data::WordCounter;
 pub use engine::*;
 pub use results::*;
+
+/// Scorers for determining which word is the best guess.
+///
+/// Each scorer implements the [`scorers::WordScorer`] trait. Scorers can be used with the
+/// [`MaxScoreGuesser`].
+pub mod scorers;
 
 /// Internals and other things that may be useful if you want to implement your own Wordle solving
 /// algorithms.
 pub mod details {
     pub use crate::data::CompressedGuessResult;
     pub use crate::data::LocatedLetter;
+    pub use crate::data::WordCounter;
     pub use crate::data::WordTracker;
     pub use crate::restrictions::*;
 }

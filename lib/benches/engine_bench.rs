@@ -2,6 +2,7 @@
 
 extern crate test;
 
+use rs_wordle_solver::scorers::*;
 use rs_wordle_solver::*;
 
 use std::error::Error;
@@ -53,7 +54,7 @@ fn bench_unique_letters_improved_words(b: &mut Bencher) -> Result<(), WordleErro
     let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
     let bank = WordBank::from_reader(&mut all_words)?;
-    let scorer = MaxUniqueLetterFrequencyScorer::new(WordCounter::new(&bank));
+    let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
@@ -73,7 +74,7 @@ fn bench_located_letters_improved_words(b: &mut Bencher) -> Result<(), WordleErr
     let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
     let bank = WordBank::from_reader(&mut all_words)?;
-    let scorer = LocatedLettersScorer::new(&bank, WordCounter::new(&bank));
+    let scorer = LocatedLettersScorer::new(&bank);
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
@@ -93,7 +94,7 @@ fn bench_max_approximate_eliminations_improved_words(b: &mut Bencher) -> Result<
     let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
     let bank = WordBank::from_reader(&mut all_words)?;
-    let scorer = MaxApproximateEliminationsScorer::new(WordCounter::new(&bank));
+    let scorer = MaxApproximateEliminationsScorer::new(&bank);
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();

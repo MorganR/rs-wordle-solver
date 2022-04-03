@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use rs_wordle_solver::scorers::*;
 use rs_wordle_solver::*;
 use std::collections::HashMap;
 use std::fs::File;
@@ -390,7 +391,10 @@ fn benchmark_words(
         }
         _ => None,
     };
-    println!("Scorer preconstruction took: {}s", preconstruction_start.elapsed().as_secs_f64());
+    println!(
+        "Scorer preconstruction took: {}s",
+        preconstruction_start.elapsed().as_secs_f64()
+    );
     for word in words_to_bench.iter() {
         let max_num_guesses = 128;
         let result = match guesser_impl {
@@ -403,7 +407,7 @@ fn benchmark_words(
                 MaxScoreGuesser::new(
                     guess_from.into(),
                     &word_bank,
-                    MaxUniqueLetterFrequencyScorer::new(WordCounter::new(&word_bank)),
+                    MaxUniqueLetterFrequencyScorer::new(&word_bank),
                 ),
             ),
             GuesserImpl::LocatedLetters => play_game_with_guesser(
@@ -412,7 +416,7 @@ fn benchmark_words(
                 MaxScoreGuesser::new(
                     guess_from.into(),
                     &word_bank,
-                    LocatedLettersScorer::new(&word_bank, WordCounter::new(&word_bank)),
+                    LocatedLettersScorer::new(&word_bank),
                 ),
             ),
             GuesserImpl::ApproximateEliminations => play_game_with_guesser(
@@ -421,7 +425,7 @@ fn benchmark_words(
                 MaxScoreGuesser::new(
                     guess_from.into(),
                     &word_bank,
-                    MaxApproximateEliminationsScorer::new(WordCounter::new(&word_bank)),
+                    MaxApproximateEliminationsScorer::new(&word_bank),
                 ),
             ),
             GuesserImpl::MaxEliminations => play_game_with_guesser(
@@ -494,7 +498,7 @@ fn play_single_game(
             MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxUniqueLetterFrequencyScorer::new(WordCounter::new(word_bank)),
+                MaxUniqueLetterFrequencyScorer::new(word_bank),
             ),
         ),
         GuesserImpl::LocatedLetters => play_game_with_guesser(
@@ -503,7 +507,7 @@ fn play_single_game(
             MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                LocatedLettersScorer::new(word_bank, WordCounter::new(word_bank)),
+                LocatedLettersScorer::new(word_bank),
             ),
         ),
         GuesserImpl::ApproximateEliminations => play_game_with_guesser(
@@ -512,7 +516,7 @@ fn play_single_game(
             MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxApproximateEliminationsScorer::new(WordCounter::new(word_bank)),
+                MaxApproximateEliminationsScorer::new(word_bank),
             ),
         ),
         GuesserImpl::MaxEliminations => play_game_with_guesser(
@@ -569,19 +573,19 @@ fn play_interactive_game(
             play_interactive_game_with_guesser(MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxUniqueLetterFrequencyScorer::new(WordCounter::new(word_bank)),
+                MaxUniqueLetterFrequencyScorer::new(word_bank),
             ))
         }
         GuesserImpl::LocatedLetters => play_interactive_game_with_guesser(MaxScoreGuesser::new(
             guess_from.into(),
             word_bank,
-            LocatedLettersScorer::new(word_bank, WordCounter::new(word_bank)),
+            LocatedLettersScorer::new(word_bank),
         )),
         GuesserImpl::ApproximateEliminations => {
             play_interactive_game_with_guesser(MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxApproximateEliminationsScorer::new(WordCounter::new(word_bank)),
+                MaxApproximateEliminationsScorer::new(word_bank),
             ))
         }
         GuesserImpl::MaxEliminations => play_interactive_game_with_guesser(MaxScoreGuesser::new(

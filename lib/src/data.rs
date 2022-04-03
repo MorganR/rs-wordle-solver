@@ -171,7 +171,7 @@ impl Deref for WordBank {
 /// Use:
 ///
 /// ```
-/// # use rs_wordle_solver::WordCounter;
+/// # use rs_wordle_solver::details::WordCounter;
 /// # use rs_wordle_solver::details::LocatedLetter;
 /// let all_words = vec!["aba", "bbd", "efg"];
 /// let counter = WordCounter::new(&all_words);
@@ -201,7 +201,7 @@ impl WordCounter {
     /// Retrieves the count of words with the given letter at the given location.
     ///
     /// ```
-    /// use rs_wordle_solver::WordCounter;
+    /// use rs_wordle_solver::details::WordCounter;
     /// use rs_wordle_solver::details::LocatedLetter;
     ///
     /// let all_words = vec!["aba", "bbd", "efg"];
@@ -225,7 +225,7 @@ impl WordCounter {
     /// Retrieves the count of words that contain the given letter.
     ///
     /// ```
-    /// use rs_wordle_solver::WordCounter;
+    /// use rs_wordle_solver::details::WordCounter;
     ///
     /// let all_words = vec!["aba", "bbd", "efg"];
     /// let counter = WordCounter::from_iter(&all_words);
@@ -252,7 +252,7 @@ where
     /// Creates a new word counter based on the given word list.
     ///
     /// ```
-    /// use rs_wordle_solver::WordCounter;
+    /// use rs_wordle_solver::details::WordCounter;
     ///
     /// let all_words = vec!["bba", "bcd", "efg"];
     /// let counter: WordCounter = all_words.iter().collect();
