@@ -4,7 +4,7 @@ An automated solving library for the popular game: [Wordle](https://www.nytimes.
 
 ## How to use it?
 
-See the docs.
+See [the docs](https://docs.rs/rs-wordle-solver/0.1.0/rs_wordle_solver/).
 
 ## Solve efficiency benchmarks
 
