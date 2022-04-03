@@ -76,6 +76,25 @@ pub fn play_game_with_guesser<G: Guesser>(
 }
 
 /// Guesses at random from the possible words that meet the restrictions.
+/// 
+/// A sample benchmark against the `data/improved-words.txt` list performed as follows:
+/// 
+/// |Num guesses to win|Num games|
+/// |------------------|---------|
+/// |1|1|
+/// |2|106|
+/// |3|816|
+/// |4|1628|
+/// |5|1248|
+/// |6|518|
+/// |7|180|
+/// |8|67|
+/// |9|28|
+/// |10|7|
+/// |11|2|
+/// |12|1|
+/// 
+/// **Average number of guesses:** 4.49 +/- 1.26
 #[derive(Clone)]
 pub struct RandomGuesser {
     possible_words: Vec<Rc<str>>,
@@ -492,9 +511,11 @@ impl WordScorer for LocatedLettersScorer {
 /// * if not present: all are removed, so: 3 * (0/3) *(note: this expectation is skipped if this letter*
 ///   *has already been checked at another location)*.
 ///
-/// These per-letter expectations are then summed together to get the expectation value for the word.
-/// Approximating the expected eliminations in this way is cheap to compute, but slightly less accurate,
-/// and therefore less effective, than using the precise counts computed by [`MaxEliminationsScorer`].
+/// These per-letter expectations are then summed together to get the expectation value for the
+/// word. Approximating the expected eliminations in this way is cheap to compute, but slightly less
+/// accurate, and therefore less effective, than using the precise counts computed by
+/// [`MaxEliminationsScorer`]. Ignoring `MaxEliminationsScorer`'s precomputation on construction,
+/// this approximate scorer is still about 10x faster.
 ///
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
 /// results:
@@ -525,7 +546,7 @@ pub struct MaxApproximateEliminationsScorer {
 }
 
 impl MaxApproximateEliminationsScorer {
-    /// Constructs a `MaxApproximateEliminationsScorer` based on the given [`WordCounter`].
+    /// Constructs a `MaxApproximateEliminationsScorer` based on the given [`WordBank`].
     /// The counter should be constructed from the same bank as the associated [`Guesser`].
     ////Unmi
     /// ```
@@ -607,8 +628,8 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// each guess, and chooses the word that eliminates the most other guesses.
 ///
 /// This is a highly effective scoring strategy, but also quite expensive to compute. On my
-/// machine, constructing the scorer for about 4600 words takes about 9 seconds, but each
-/// subsequent game can be played in about 650ms if the scorer is then cloned before each game.
+/// machine, constructing the scorer for about 4600 words takes about 1.4 seconds, but each
+/// subsequent game can be played in about 27ms if the scorer is then cloned before each game.
 ///
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
 /// results:
@@ -723,6 +744,9 @@ impl WordScorer for MaxEliminationsScorer {
 
 /// This probabilistically calculates the expectation value for how many words will be eliminated by
 /// the next two guesses, and chooses the word that maximizes that.
+/// 
+/// This is very expensive to run, and seems to perform worse than [`MaxEliminationsScorer`], so you
+/// should probably use that instead. Constructing this solver with 4602 words takes almost 6 hours.
 #[derive(Clone)]
 pub struct MaxComboEliminationsScorer {
     all_words: Vec<Rc<str>>,
