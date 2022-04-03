@@ -20,5 +20,3 @@ jobs:
       run: cargo build --verbose --manifest-path=lib/Cargo.toml
     - name: Run tests
       run: cargo test --verbose --manifest-path=lib/Cargo.toml
-    - name: Update docs
-      run: cargo doc --manifest-path=lib/Cargo.toml --target-dir=doc
