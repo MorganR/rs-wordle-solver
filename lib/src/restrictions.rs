@@ -393,6 +393,13 @@ impl WordRestrictions {
         } else {
             presence.possibly_bump_min_count(num_times_present)?;
         }
+
+        for (other_letter, other_presence) in self.present_letters.iter_mut() {
+            if letter == *other_letter {
+                continue;
+            }
+            other_presence.set_must_not_be_at(location)?;
+        }
         Ok(())
     }
 
@@ -682,6 +689,85 @@ mod tests {
         assert_eq!(restrictions.is_satisfied_by("bcba"), false);
         assert_eq!(restrictions.is_satisfied_by("adbd"), false);
         assert_eq!(restrictions.is_satisfied_by("bdbd"), false);
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_state() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+
+        restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+
+        assert_eq!(
+            restrictions.state(&LocatedLetter::new('a', 0)),
+            Some(LetterRestriction::PresentNotHere)
+        );
+        assert_eq!(
+            restrictions.state(&LocatedLetter::new('a', 1)),
+            Some(LetterRestriction::PresentMaybeHere)
+        );
+        assert_eq!(
+            restrictions.state(&LocatedLetter::new('a', 2)),
+            Some(LetterRestriction::PresentNotHere)
+        );
+        assert_eq!(
+            restrictions.state(&LocatedLetter::new('b', 0)),
+            Some(LetterRestriction::PresentMaybeHere)
+        );
+        assert_eq!(
+            restrictions.state(&LocatedLetter::new('b', 1)),
+            Some(LetterRestriction::PresentNotHere)
+        );
+        assert_eq!(
+            restrictions.state(&LocatedLetter::new('b', 2)),
+            Some(LetterRestriction::Here)
+        );
+        assert_eq!(
+            restrictions.state(&LocatedLetter::new('c', 3)),
+            Some(LetterRestriction::NotPresent)
+        );
+        assert_eq!(
+            restrictions.state(&LocatedLetter::new('c', 0)),
+            Some(LetterRestriction::NotPresent)
+        );
+        assert_eq!(restrictions.state(&LocatedLetter::new('z', 0)), None);
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_is_state_known() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+
+        restrictions.update(&GuessResult {
+            guess: "abbc",
+            results: vec![
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ],
+        })?;
+
+        assert!(restrictions.is_state_known(LocatedLetter::new('a', 0)));
+        assert_eq!(
+            restrictions.is_state_known(LocatedLetter::new('a', 1)),
+            false
+        );
+        assert!(restrictions.is_state_known(LocatedLetter::new('b', 2)));
+        assert!(restrictions.is_state_known(LocatedLetter::new('c', 3)));
+        assert!(restrictions.is_state_known(LocatedLetter::new('c', 0)));
+        assert_eq!(
+            restrictions.is_state_known(LocatedLetter::new('z', 0)),
+            false
+        );
         Ok(())
     }
 
