@@ -8,7 +8,7 @@ fn get_result_for_guess_correct() {
     let result = get_result_for_guess("abcb", "abcb");
 
     assert_matches!(
-        get_result_for_guess("abcb", "abcb"),
+        result,
         Ok(GuessResult {
             guess: "abcb",
             results: _,
