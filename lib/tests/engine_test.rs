@@ -123,6 +123,42 @@ fn max_score_guesser_update_guess_result_modifies_next_guess() -> Result<(), Wor
 }
 
 #[test]
+fn max_score_guesser_select_top_n_guesses_no_words() -> Result<(), WordleError> {
+    let bank = WordBank::from_iterator(&Vec::<Rc<str>>::new())?;
+    let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
+
+    assert_eq!(guesser.select_top_n_guesses(5), vec![]);
+    Ok(())
+}
+
+#[test]
+fn max_score_guesser_select_top_n_guesses() -> Result<(), WordleError> {
+    let bank = WordBank::from_iterator(vec!["abcz", "wxyz", "defy", "ghix"])?;
+    let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
+
+    assert_eq!(
+        guesser.select_top_n_guesses(3),
+        vec![
+            ScoredGuess {
+                score: 7,
+                guess: Rc::from("wxyz")
+            },
+            ScoredGuess {
+                score: 5,
+                guess: Rc::from("ghix")
+            },
+            ScoredGuess {
+                score: 5,
+                guess: Rc::from("defy")
+            }
+        ]
+    );
+    Ok(())
+}
+
+#[test]
 fn play_game_with_unknown_word_random() -> Result<(), WordleError> {
     let bank = WordBank::from_iterator(vec!["abcz", "weyz", "defy", "ghix"])?;
     let guesser = RandomGuesser::new(&bank);

@@ -149,6 +149,13 @@ pub enum GuessFrom {
     PossibleWords,
 }
 
+/// Represents a guess with a 'score' estimating how useful the guess is. Higher scores are better.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ScoredGuess {
+    pub score: i64,
+    pub guess: Rc<str>,
+}
+
 /// Selects the next guess that maximizes the score according to the owned scorer.
 ///
 /// See [`WordScorer`] for more information about possible scoring algorithms.
@@ -198,6 +205,28 @@ where
             restrictions: WordRestrictions::new(word_bank.word_length() as u8),
             scorer,
         }
+    }
+
+    /// Returns up-to the top `n` guesses for the wordle, based on the current state.
+    ///
+    /// Returns an empty vector if no known words are possible given the known restrictions imposed
+    /// by previous calls to [`Self::update()`].
+    pub fn select_top_n_guesses(&mut self, n: usize) -> Vec<ScoredGuess> {
+        let words_to_score = match self.guess_mode {
+            // Only score possible words if we're down to the last two guesses.
+            _ if self.possible_words.len() <= 2 => self.possible_words.iter(),
+            GuessFrom::AllUnguessedWords => self.all_unguessed_words.iter(),
+            GuessFrom::PossibleWords => self.possible_words.iter(),
+        };
+
+        let mut scored_words: Vec<_> = words_to_score
+            .map(|word| ScoredGuess {
+                guess: Rc::clone(word),
+                score: self.scorer.score_word(word),
+            })
+            .collect();
+        scored_words.sort_unstable();
+        return scored_words.into_iter().rev().take(n).collect();
     }
 }
 
