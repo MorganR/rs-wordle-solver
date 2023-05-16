@@ -5,17 +5,17 @@ use rs_wordle_solver::details::*;
 use rs_wordle_solver::*;
 
 use std::io::Cursor;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::result::Result;
 
-macro_rules! assert_rc_eq {
-    ($rc_vec:expr, $non_rc_vec:expr) => {
+macro_rules! assert_arc_eq {
+    ($arc_vec:expr, $non_arc_vec:expr) => {
         assert_eq!(
-            $rc_vec as &[Rc<str>],
-            $non_rc_vec
+            $arc_vec as &[Arc<str>],
+            $non_arc_vec
                 .iter()
-                .map(|thing| Rc::from(*thing))
-                .collect::<Vec<Rc<_>>>()
+                .map(|thing| Arc::from(*thing))
+                .collect::<Vec<Arc<_>>>()
         );
     };
 }
@@ -27,7 +27,7 @@ fn word_bank_from_reader_succeeds() -> Result<(), WordleError> {
     let word_bank = WordBank::from_reader(&mut cursor)?;
 
     assert_eq!(word_bank.len(), 2);
-    assert_rc_eq!(&word_bank, &["worda", "wordb"]);
+    assert_arc_eq!(&word_bank, &["worda", "wordb"]);
     assert_eq!(word_bank.word_length(), 5);
     Ok(())
 }
@@ -37,7 +37,7 @@ fn word_bank_from_iterator_succeeds() -> Result<(), WordleError> {
     let word_bank = WordBank::from_iterator(vec!["", "worda", "Wordb "])?;
 
     assert_eq!(word_bank.len(), 2);
-    assert_rc_eq!(&word_bank, &["worda", "wordb"]);
+    assert_arc_eq!(&word_bank, &["worda", "wordb"]);
     assert_eq!(word_bank.word_length(), 5);
     Ok(())
 }
@@ -51,7 +51,7 @@ fn word_bank_from_string_iterator_succeeds() -> Result<(), WordleError> {
     ])?;
 
     assert_eq!(word_bank.len(), 2);
-    assert_rc_eq!(&word_bank, &["worda", "wordb"]);
+    assert_arc_eq!(&word_bank, &["worda", "wordb"]);
     assert_eq!(word_bank.word_length(), 5);
     Ok(())
 }

@@ -5,7 +5,7 @@ use crate::results::get_result_for_guess;
 use crate::results::WordleError;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::result::Result;
 
 /// Gives words a score, where the maximum score indicates the best guess.
@@ -32,10 +32,10 @@ pub trait WordScorer {
         &mut self,
         latest_guess: &str,
         restrictions: &WordRestrictions,
-        possible_words: &[Rc<str>],
+        possible_words: &[Arc<str>],
     ) -> Result<(), WordleError>;
     /// Determines a score for the given word. The higher the score, the better the guess.
-    fn score_word(&mut self, word: &Rc<str>) -> i64;
+    fn score_word(&mut self, word: &Arc<str>) -> i64;
 }
 
 /// Scores words by the number of unique words that have the same letter (in any location), summed
@@ -104,14 +104,14 @@ impl WordScorer for MaxUniqueLetterFrequencyScorer {
         &mut self,
         latest_guess: &str,
         _restrictions: &WordRestrictions,
-        possible_words: &[Rc<str>],
+        possible_words: &[Arc<str>],
     ) -> Result<(), WordleError> {
         self.guessed_letters.extend(latest_guess.chars());
         self.word_counter = WordCounter::from_iter(possible_words);
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Rc<str>) -> i64 {
+    fn score_word(&mut self, word: &Arc<str>) -> i64 {
         let mut sum = 0;
         for (index, letter) in word.char_indices() {
             if (index > 0
@@ -208,14 +208,14 @@ impl WordScorer for LocatedLettersScorer {
         &mut self,
         _last_guess: &str,
         restrictions: &WordRestrictions,
-        possible_words: &[Rc<str>],
+        possible_words: &[Arc<str>],
     ) -> Result<(), WordleError> {
         self.restrictions = restrictions.clone();
         self.counter = WordCounter::from_iter(possible_words);
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Rc<str>) -> i64 {
+    fn score_word(&mut self, word: &Arc<str>) -> i64 {
         let mut sum = 0;
         for (index, letter) in word.char_indices() {
             let located_letter = LocatedLetter::new(letter, index as u8);
@@ -370,13 +370,13 @@ impl WordScorer for MaxApproximateEliminationsScorer {
         &mut self,
         _last_guess: &str,
         _restrictions: &WordRestrictions,
-        possible_words: &[Rc<str>],
+        possible_words: &[Arc<str>],
     ) -> Result<(), WordleError> {
         self.counter = WordCounter::from_iter(possible_words);
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Rc<str>) -> i64 {
+    fn score_word(&mut self, word: &Arc<str>) -> i64 {
         (self.compute_expected_eliminations(word.as_ref()) * 1000.0) as i64
     }
 }
@@ -412,8 +412,8 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// Guess from `AllUnguessedWords`: 3.78 +/- 0.65
 #[derive(Clone)]
 pub struct MaxEliminationsScorer {
-    possible_words: Vec<Rc<str>>,
-    first_expected_eliminations_per_word: HashMap<Rc<str>, f64>,
+    possible_words: Vec<Arc<str>>,
+    first_expected_eliminations_per_word: HashMap<Arc<str>, f64>,
     is_first_round: bool,
 }
 
@@ -439,11 +439,11 @@ impl MaxEliminationsScorer {
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
-    pub fn new(all_words: &[Rc<str>]) -> Result<MaxEliminationsScorer, WordleError> {
-        let mut expected_eliminations_per_word: HashMap<Rc<str>, f64> = HashMap::new();
+    pub fn new(all_words: &[Arc<str>]) -> Result<MaxEliminationsScorer, WordleError> {
+        let mut expected_eliminations_per_word: HashMap<Arc<str>, f64> = HashMap::new();
         for word in all_words {
             let expected_elimations = compute_expected_eliminations(word, all_words);
-            expected_eliminations_per_word.insert(Rc::clone(word), expected_elimations);
+            expected_eliminations_per_word.insert(Arc::clone(word), expected_elimations);
         }
         Ok(MaxEliminationsScorer {
             possible_words: all_words.to_vec(),
@@ -452,12 +452,12 @@ impl MaxEliminationsScorer {
         })
     }
 
-    fn compute_expected_eliminations(&mut self, word: &Rc<str>) -> f64 {
+    fn compute_expected_eliminations(&mut self, word: &Arc<str>) -> f64 {
         compute_expected_eliminations(word, &self.possible_words)
     }
 }
 
-fn compute_expected_eliminations(word: &Rc<str>, possible_words: &[Rc<str>]) -> f64 {
+fn compute_expected_eliminations(word: &Arc<str>, possible_words: &[Arc<str>]) -> f64 {
     let mut matching_results: HashMap<CompressedGuessResult, usize> = HashMap::new();
     for possible_word in possible_words {
         let guess_result = CompressedGuessResult::from_results(
@@ -481,14 +481,14 @@ impl WordScorer for MaxEliminationsScorer {
         &mut self,
         _latest_guess: &str,
         _restrictions: &WordRestrictions,
-        possible_words: &[Rc<str>],
+        possible_words: &[Arc<str>],
     ) -> Result<(), WordleError> {
         self.possible_words = possible_words.to_vec();
         self.is_first_round = false;
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Rc<str>) -> i64 {
+    fn score_word(&mut self, word: &Arc<str>) -> i64 {
         if self.is_first_round {
             if let Some(expected_elimations) = self.first_expected_eliminations_per_word.get(word) {
                 return (expected_elimations * 1000.0) as i64;
@@ -506,9 +506,9 @@ impl WordScorer for MaxEliminationsScorer {
 /// should probably use that instead. Constructing this solver with 4602 words takes almost 6 hours.
 #[derive(Clone)]
 pub struct MaxComboEliminationsScorer {
-    all_words: Vec<Rc<str>>,
-    possible_words: Vec<Rc<str>>,
-    first_expected_eliminations_per_word: HashMap<Rc<str>, f64>,
+    all_words: Vec<Arc<str>>,
+    possible_words: Vec<Arc<str>>,
+    first_expected_eliminations_per_word: HashMap<Arc<str>, f64>,
     is_first_round: bool,
     min_possible_words_for_combo: usize,
 }
@@ -539,12 +539,12 @@ impl MaxComboEliminationsScorer {
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
     pub fn new(
-        all_words: &[Rc<str>],
+        all_words: &[Arc<str>],
         min_possible_words_for_combo: usize,
     ) -> Result<MaxComboEliminationsScorer, WordleError> {
         let mut scorer = MaxComboEliminationsScorer {
-            all_words: all_words.iter().map(Rc::clone).collect(),
-            possible_words: all_words.iter().map(Rc::clone).collect(),
+            all_words: all_words.iter().map(Arc::clone).collect(),
+            possible_words: all_words.iter().map(Arc::clone).collect(),
             first_expected_eliminations_per_word: HashMap::new(),
             is_first_round: true,
             min_possible_words_for_combo,
@@ -553,12 +553,12 @@ impl MaxComboEliminationsScorer {
             let expected_elimations = scorer.compute_expected_eliminations(word);
             scorer
                 .first_expected_eliminations_per_word
-                .insert(Rc::clone(word), expected_elimations);
+                .insert(Arc::clone(word), expected_elimations);
         }
         Ok(scorer)
     }
 
-    fn compute_expected_eliminations(&self, word: &Rc<str>) -> f64 {
+    fn compute_expected_eliminations(&self, word: &Arc<str>) -> f64 {
         if self.possible_words.len() > self.min_possible_words_for_combo {
             self.compute_expected_combo_eliminations(word)
         } else {
@@ -566,10 +566,10 @@ impl MaxComboEliminationsScorer {
         }
     }
 
-    fn compute_expected_combo_eliminations(&self, word: &Rc<str>) -> f64 {
+    fn compute_expected_combo_eliminations(&self, word: &Arc<str>) -> f64 {
         let mut best_expected_eliminations = 0.0;
         let num_possible_words = self.possible_words.len();
-        let mut first_guess_result_per_objective: HashMap<Rc<str>, CompressedGuessResult> =
+        let mut first_guess_result_per_objective: HashMap<Arc<str>, CompressedGuessResult> =
             HashMap::with_capacity(num_possible_words);
         for possible_objective in &self.possible_words {
             let first_guess_result =
@@ -577,7 +577,7 @@ impl MaxComboEliminationsScorer {
             let compressed_result =
                 CompressedGuessResult::from_results(&first_guess_result.results).unwrap();
             first_guess_result_per_objective
-                .insert(Rc::clone(possible_objective), compressed_result);
+                .insert(Arc::clone(possible_objective), compressed_result);
         }
         for second_guess in &self.all_words {
             let mut matching_results: HashMap<
@@ -618,14 +618,14 @@ impl WordScorer for MaxComboEliminationsScorer {
         &mut self,
         _latest_guess: &str,
         _restrictions: &WordRestrictions,
-        possible_words: &[Rc<str>],
+        possible_words: &[Arc<str>],
     ) -> Result<(), WordleError> {
         self.possible_words = possible_words.to_vec();
         self.is_first_round = false;
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Rc<str>) -> i64 {
+    fn score_word(&mut self, word: &Arc<str>) -> i64 {
         if self.is_first_round {
             if let Some(expected_elimations) = self.first_expected_eliminations_per_word.get(word) {
                 return (expected_elimations * 1000.0) as i64;

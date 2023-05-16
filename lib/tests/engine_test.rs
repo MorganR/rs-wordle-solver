@@ -4,12 +4,12 @@ extern crate assert_matches;
 use rs_wordle_solver::scorers::*;
 use rs_wordle_solver::*;
 
-use std::rc::Rc;
+use std::sync::Arc;
 use std::result::Result;
 
 #[test]
 fn random_guesser_select_next_guess_no_words() -> Result<(), WordleError> {
-    let bank = WordBank::from_iterator(&Vec::<Rc<str>>::new())?;
+    let bank = WordBank::from_iterator(&Vec::<Arc<str>>::new())?;
     let mut guesser = RandomGuesser::new(&bank);
 
     assert_eq!(guesser.select_next_guess(), None);
@@ -41,7 +41,7 @@ fn random_guesser_update_guess_result_modifies_next_guess() -> Result<(), Wordle
         ],
     })?;
 
-    assert_eq!(guesser.select_next_guess(), Some(Rc::from("abc")));
+    assert_eq!(guesser.select_next_guess(), Some(Arc::from("abc")));
     Ok(())
 }
 
@@ -84,7 +84,7 @@ fn random_guesser_invalid_update_fails() -> Result<(), WordleError> {
 
 #[test]
 fn max_score_guesser_select_next_guess_no_words() -> Result<(), WordleError> {
-    let bank = WordBank::from_iterator(&Vec::<Rc<str>>::new())?;
+    let bank = WordBank::from_iterator(&Vec::<Arc<str>>::new())?;
     let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
     let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
@@ -98,7 +98,7 @@ fn max_score_guesser_select_next_guess_chooses_best_word() -> Result<(), WordleE
     let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
     let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
-    assert_eq!(guesser.select_next_guess(), Some(Rc::from("wxyz")));
+    assert_eq!(guesser.select_next_guess(), Some(Arc::from("wxyz")));
     Ok(())
 }
 
@@ -118,13 +118,13 @@ fn max_score_guesser_update_guess_result_modifies_next_guess() -> Result<(), Wor
         ],
     })?;
 
-    assert_eq!(guesser.select_next_guess(), Some(Rc::from("defy")));
+    assert_eq!(guesser.select_next_guess(), Some(Arc::from("defy")));
     Ok(())
 }
 
 #[test]
 fn max_score_guesser_select_top_n_guesses_no_words() -> Result<(), WordleError> {
-    let bank = WordBank::from_iterator(&Vec::<Rc<str>>::new())?;
+    let bank = WordBank::from_iterator(&Vec::<Arc<str>>::new())?;
     let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
     let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
@@ -143,15 +143,15 @@ fn max_score_guesser_select_top_n_guesses() -> Result<(), WordleError> {
         vec![
             ScoredGuess {
                 score: 7,
-                guess: Rc::from("wxyz")
+                guess: Arc::from("wxyz")
             },
             ScoredGuess {
                 score: 5,
-                guess: Rc::from("ghix")
+                guess: Arc::from("ghix")
             },
             ScoredGuess {
                 score: 5,
-                guess: Rc::from("defy")
+                guess: Arc::from("defy")
             }
         ]
     );

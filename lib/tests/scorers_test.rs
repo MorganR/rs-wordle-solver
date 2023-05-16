@@ -5,7 +5,7 @@ use rs_wordle_solver::details::*;
 use rs_wordle_solver::scorers::*;
 use rs_wordle_solver::*;
 
-use std::rc::Rc;
+use std::sync::Arc;
 use std::result::Result;
 
 macro_rules! test_scorer {
@@ -67,13 +67,13 @@ mod score_located_letters {
             WordBank::from_iterator(vec!["alpha", "allot", "begot", "below", "endow", "ingot"])?;
         let mut scorer = LocatedLettersScorer::new(&bank);
 
-        assert_eq!(scorer.score_word(&Rc::from("alpha")), 4 + 5 + 2 + 2 + 1);
-        assert_eq!(scorer.score_word(&Rc::from("allot")), 4 + 5 + 2 + 10 + 6);
-        assert_eq!(scorer.score_word(&Rc::from("begot")), 4 + 5 + 4 + 10 + 6);
-        assert_eq!(scorer.score_word(&Rc::from("below")), 4 + 5 + 5 + 10 + 4);
-        assert_eq!(scorer.score_word(&Rc::from("endow")), 4 + 4 + 2 + 10 + 4);
-        assert_eq!(scorer.score_word(&Rc::from("ingot")), 2 + 4 + 4 + 10 + 6);
-        assert_eq!(scorer.score_word(&Rc::from("other")), 5 + 3 + 1 + 3 + 0);
+        assert_eq!(scorer.score_word(&Arc::from("alpha")), 4 + 5 + 2 + 2 + 1);
+        assert_eq!(scorer.score_word(&Arc::from("allot")), 4 + 5 + 2 + 10 + 6);
+        assert_eq!(scorer.score_word(&Arc::from("begot")), 4 + 5 + 4 + 10 + 6);
+        assert_eq!(scorer.score_word(&Arc::from("below")), 4 + 5 + 5 + 10 + 4);
+        assert_eq!(scorer.score_word(&Arc::from("endow")), 4 + 4 + 2 + 10 + 4);
+        assert_eq!(scorer.score_word(&Arc::from("ingot")), 2 + 4 + 4 + 10 + 6);
+        assert_eq!(scorer.score_word(&Arc::from("other")), 5 + 3 + 1 + 3 + 0);
         Ok(())
     }
 
@@ -93,13 +93,13 @@ mod score_located_letters {
                 LetterResult::NotPresent,
             ],
         });
-        scorer.update("begot", &restrictions, &vec![Rc::from("endow")])?;
+        scorer.update("begot", &restrictions, &vec![Arc::from("endow")])?;
         // Remaining possible words: 'endow'
 
-        assert_eq!(scorer.score_word(&Rc::from("alpha")), 0 + 0 + 0 + 0 + 0);
-        assert_eq!(scorer.score_word(&Rc::from("below")), 0 + 0 + 0 + 1 + 2);
-        assert_eq!(scorer.score_word(&Rc::from("endow")), 1 + 2 + 2 + 1 + 2);
-        assert_eq!(scorer.score_word(&Rc::from("other")), 0 + 0 + 0 + 0 + 0);
+        assert_eq!(scorer.score_word(&Arc::from("alpha")), 0 + 0 + 0 + 0 + 0);
+        assert_eq!(scorer.score_word(&Arc::from("below")), 0 + 0 + 0 + 1 + 2);
+        assert_eq!(scorer.score_word(&Arc::from("endow")), 1 + 2 + 2 + 1 + 2);
+        assert_eq!(scorer.score_word(&Arc::from("other")), 0 + 0 + 0 + 0 + 0);
         Ok(())
     }
 
@@ -122,14 +122,14 @@ mod score_located_letters {
         scorer.update(
             "other",
             &restrictions,
-            &vec![Rc::from("below"), Rc::from("endow")],
+            &vec![Arc::from("below"), Arc::from("endow")],
         )?;
         // Remaining possible words: 'below', 'endow'
 
-        assert_eq!(scorer.score_word(&Rc::from("alpha")), 0 + 1 + 0 + 0 + 0);
-        assert_eq!(scorer.score_word(&Rc::from("below")), 2 + 1 + 2 + 2 + 4);
-        assert_eq!(scorer.score_word(&Rc::from("endow")), 1 + 2 + 2 + 2 + 4);
-        assert_eq!(scorer.score_word(&Rc::from("other")), 0 + 0 + 0 + 0 + 0);
+        assert_eq!(scorer.score_word(&Arc::from("alpha")), 0 + 1 + 0 + 0 + 0);
+        assert_eq!(scorer.score_word(&Arc::from("below")), 2 + 1 + 2 + 2 + 4);
+        assert_eq!(scorer.score_word(&Arc::from("endow")), 1 + 2 + 2 + 2 + 4);
+        assert_eq!(scorer.score_word(&Arc::from("other")), 0 + 0 + 0 + 0 + 0);
         Ok(())
     }
 }
@@ -157,22 +157,22 @@ mod max_eliminations_scorer {
 
     #[test]
     fn score_word() {
-        let possible_words: Vec<Rc<str>> = vec![Rc::from("cod"), Rc::from("wod"), Rc::from("mod")];
+        let possible_words: Vec<Arc<str>> = vec![Arc::from("cod"), Arc::from("wod"), Arc::from("mod")];
         let mut scorer = MaxEliminationsScorer::new(&possible_words).unwrap();
 
         assert_eq!(scorer.score_word(&possible_words[0]), 1333);
-        assert_eq!(scorer.score_word(&Rc::from("mwc")), 2000);
-        assert_eq!(scorer.score_word(&Rc::from("zzz")), 0);
+        assert_eq!(scorer.score_word(&Arc::from("mwc")), 2000);
+        assert_eq!(scorer.score_word(&Arc::from("zzz")), 0);
     }
 
     #[test]
     fn score_word_after_update() -> Result<(), WordleError> {
-        let possible_words: Vec<Rc<str>> = vec![
-            Rc::from("abb"),
-            Rc::from("abc"),
-            Rc::from("bad"),
-            Rc::from("zza"),
-            Rc::from("zzz"),
+        let possible_words: Vec<Arc<str>> = vec![
+            Arc::from("abb"),
+            Arc::from("abc"),
+            Arc::from("bad"),
+            Arc::from("zza"),
+            Arc::from("zzz"),
         ];
         let mut scorer = MaxEliminationsScorer::new(&possible_words).unwrap();
 
@@ -193,7 +193,7 @@ mod max_eliminations_scorer {
         assert_eq!(scorer.score_word(&possible_words[1]), 2000);
         // Could be true in one case (elimnate 2), or false in 2 cases (eliminate 1)
         assert_eq!(scorer.score_word(&possible_words[2]), 1333);
-        assert_eq!(scorer.score_word(&Rc::from("zzz")), 0);
+        assert_eq!(scorer.score_word(&Arc::from("zzz")), 0);
         Ok(())
     }
 }

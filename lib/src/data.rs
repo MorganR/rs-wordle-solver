@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::io;
 use std::ops::Deref;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::result::Result;
 
 /// A letter along with its location in the word.
@@ -24,7 +24,7 @@ use std::result::Result;
 ///     LocatedLetter::new('c', 2),
 /// ]);
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LocatedLetter {
     pub letter: char,
     /// The zero-based location (i.e. index) for this letter in a word.
@@ -38,9 +38,9 @@ impl LocatedLetter {
 }
 
 /// Contains all the possible words for a Wordle game.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct WordBank {
-    all_words: Vec<Rc<str>>,
+    all_words: Vec<Arc<str>>,
     word_length: usize,
 }
 
@@ -75,15 +75,15 @@ impl WordBank {
                     } else if word_length != this_word_length {
                         return Err(WordleError::WordLength(word_length));
                     }
-                    Ok(Rc::from(word.to_lowercase().as_str()))
+                    Ok(Arc::from(word.to_lowercase().as_str()))
                 })
             })
             .filter(|maybe_word| {
                 maybe_word
                     .as_ref()
-                    .map_or(true, |word: &Rc<str>| word.len() > 0)
+                    .map_or(true, |word: &Arc<str>| word.len() > 0)
             })
-            .collect::<Result<Vec<Rc<str>>, WordleError>>()?;
+            .collect::<Result<Vec<Arc<str>>, WordleError>>()?;
         Ok(WordBank {
             all_words,
             word_length,
@@ -97,14 +97,14 @@ impl WordBank {
     /// [`WordleError::WordLength`].
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::WordBank;
     /// # use rs_wordle_solver::WordleError;
     ///
     /// let words = vec!["abc".to_string(), "DEF ".to_string()];
     /// let word_bank = WordBank::from_iterator(words.iter())?;
     ///
-    /// assert_eq!(&word_bank as &[Rc<str>], &[Rc::from("abc"), Rc::from("def")]);
+    /// assert_eq!(&word_bank as &[Arc<str>], &[Arc::from("abc"), Arc::from("def")]);
     /// # Ok::<(), WordleError>(())
     /// ```
     pub fn from_iterator<S>(words: impl IntoIterator<Item = S>) -> Result<Self, WordleError>
@@ -116,8 +116,8 @@ impl WordBank {
             all_words: words
                 .into_iter()
                 .filter_map(|word| {
-                    let normalized: Rc<str> =
-                        Rc::from(word.as_ref().trim().to_lowercase().as_str());
+                    let normalized: Arc<str> =
+                        Arc::from(word.as_ref().trim().to_lowercase().as_str());
                     let this_word_length = normalized.len();
                     if this_word_length == 0 {
                         return None;
@@ -129,7 +129,7 @@ impl WordBank {
                     }
                     Some(Ok(normalized))
                 })
-                .collect::<Result<Vec<Rc<str>>, WordleError>>()?,
+                .collect::<Result<Vec<Arc<str>>, WordleError>>()?,
             word_length,
         })
     }
@@ -154,7 +154,7 @@ impl WordBank {
 }
 
 impl Deref for WordBank {
-    type Target = [Rc<str>];
+    type Target = [Arc<str>];
 
     /// Derefs the list of words in the `WordBank` as a slice.
     #[inline]
@@ -297,27 +297,27 @@ where
 /// If you only need to know the number of words instead of the list of words, see [`WordCounter`].
 ///
 /// ```
-/// use std::rc::Rc;
+/// use std::sync::Arc;
 /// use rs_wordle_solver::details::WordTracker;
 /// use rs_wordle_solver::details::LocatedLetter;
 ///
-/// let all_words = [Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
+/// let all_words = [Arc::from("aba"), Arc::from("bcd"), Arc::from("efg")];
 /// let tracker = WordTracker::from_slice(&all_words);
 ///
 /// assert_eq!(tracker.all_words(), &all_words);
 /// assert_eq!(
 ///     Vec::from_iter(tracker.words_with_letter('b')),
-///     vec![&Rc::from("aba"), &Rc::from("bcd")]);
+///     vec![&Arc::from("aba"), &Arc::from("bcd")]);
 /// assert_eq!(
 ///     Vec::from_iter(tracker.words_with_located_letter(LocatedLetter::new('b', 1))),
-///     vec![&Rc::from("aba")]);
+///     vec![&Arc::from("aba")]);
 /// ```
 #[derive(Clone)]
 pub struct WordTracker {
-    empty_list: Vec<Rc<str>>,
-    all_words: Vec<Rc<str>>,
-    words_by_letter: HashMap<char, Vec<Rc<str>>>,
-    words_by_located_letter: HashMap<LocatedLetter, Vec<Rc<str>>>,
+    empty_list: Vec<Arc<str>>,
+    all_words: Vec<Arc<str>>,
+    words_by_letter: HashMap<char, Vec<Arc<str>>>,
+    words_by_located_letter: HashMap<LocatedLetter, Vec<Arc<str>>>,
 }
 
 impl WordTracker {
@@ -326,23 +326,23 @@ impl WordTracker {
     /// remain part of this tracker's information.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     ///
-    /// let all_words = vec![Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = vec![Arc::from("aba"), Arc::from("bcd"), Arc::from("efg")];
     /// let tracker = WordTracker::new(all_words.clone());
     ///
     /// assert_eq!(tracker.all_words(), &all_words);
     /// ```
-    pub fn new(all_words: Vec<Rc<str>>) -> WordTracker {
-        let mut words_by_letter: HashMap<char, Vec<Rc<str>>> = HashMap::new();
-        let mut words_by_located_letter: HashMap<LocatedLetter, Vec<Rc<str>>> = HashMap::new();
+    pub fn new(all_words: Vec<Arc<str>>) -> WordTracker {
+        let mut words_by_letter: HashMap<char, Vec<Arc<str>>> = HashMap::new();
+        let mut words_by_located_letter: HashMap<LocatedLetter, Vec<Arc<str>>> = HashMap::new();
         for word in all_words.iter() {
             for (index, letter) in word.as_ref().char_indices() {
                 words_by_located_letter
                     .entry(LocatedLetter::new(letter, index as u8))
                     .or_insert(Vec::new())
-                    .push(Rc::clone(word));
+                    .push(Arc::clone(word));
                 if index == 0
                     || word
                         .chars()
@@ -352,7 +352,7 @@ impl WordTracker {
                     words_by_letter
                         .entry(letter)
                         .or_insert(Vec::new())
-                        .push(Rc::clone(word));
+                        .push(Arc::clone(word));
                 }
             }
         }
@@ -369,43 +369,43 @@ impl WordTracker {
     /// will remain part of this tracker's information.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     ///
-    /// let all_words = [Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = [Arc::from("aba"), Arc::from("bcd"), Arc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
     ///
     /// assert_eq!(tracker.all_words(), &all_words);
     /// ```
     #[inline]
-    pub fn from_slice(words: &[Rc<str>]) -> WordTracker {
-        let all_words: Vec<Rc<str>> = words.iter().map(Rc::clone).collect();
+    pub fn from_slice(words: &[Arc<str>]) -> WordTracker {
+        let all_words: Vec<Arc<str>> = words.iter().map(Arc::clone).collect();
         WordTracker::new(all_words)
     }
 
     /// Retrieves the full list of words stored in this word tracker.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     ///
-    /// let all_words = [Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = [Arc::from("aba"), Arc::from("bcd"), Arc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
     ///
     /// assert_eq!(tracker.all_words(), &all_words);
     /// ```
     #[inline]
-    pub fn all_words(&self) -> &[Rc<str>] {
+    pub fn all_words(&self) -> &[Arc<str>] {
         &self.all_words
     }
 
     /// Returns true iff any of the words in this tracker contain the given letter.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     ///
-    /// let all_words = [Rc::from("aba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = [Arc::from("aba"), Arc::from("bcd"), Arc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
     ///
     /// assert!(tracker.has_letter('a'));
@@ -419,24 +419,24 @@ impl WordTracker {
     /// Returns an [`Iterator`] over words that have the given letter at the given location.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     /// use rs_wordle_solver::details::LocatedLetter;
     ///
-    /// let all_words = [Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = [Arc::from("bba"), Arc::from("bcd"), Arc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
     ///
     /// assert_eq!(
     ///     Vec::from_iter(tracker.words_with_located_letter(LocatedLetter::new('b', 0))),
-    ///     vec![&Rc::from("bba"), &Rc::from("bcd")]);
+    ///     vec![&Arc::from("bba"), &Arc::from("bcd")]);
     /// assert_eq!(
     ///     Vec::from_iter(tracker.words_with_located_letter(LocatedLetter::new('b', 1))),
-    ///     vec![&Rc::from("bba")]);
+    ///     vec![&Arc::from("bba")]);
     /// assert_eq!(
     ///     tracker.words_with_located_letter(LocatedLetter::new('z', 1)).count(),
     ///     0);
     /// ```
-    pub fn words_with_located_letter(&self, ll: LocatedLetter) -> impl Iterator<Item = &Rc<str>> {
+    pub fn words_with_located_letter(&self, ll: LocatedLetter) -> impl Iterator<Item = &Arc<str>> {
         self.words_by_located_letter
             .get(&ll)
             .map(|words| words.iter())
@@ -446,23 +446,23 @@ impl WordTracker {
     /// Returns an [`Iterator`] over words that have the given letter.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     ///
-    /// let all_words = [Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = [Arc::from("bba"), Arc::from("bcd"), Arc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
     ///
     /// assert_eq!(
     ///     Vec::from_iter(tracker.words_with_letter('b')),
-    ///     vec![&Rc::from("bba"), &Rc::from("bcd")]);
+    ///     vec![&Arc::from("bba"), &Arc::from("bcd")]);
     /// assert_eq!(
     ///     Vec::from_iter(tracker.words_with_letter('e')),
-    ///     vec![&Rc::from("efg")]);
+    ///     vec![&Arc::from("efg")]);
     /// assert_eq!(
     ///     tracker.words_with_letter('z').count(),
     ///     0);
     /// ```
-    pub fn words_with_letter(&self, letter: char) -> impl Iterator<Item = &Rc<str>> {
+    pub fn words_with_letter(&self, letter: char) -> impl Iterator<Item = &Arc<str>> {
         self.words_by_letter
             .get(&letter)
             .map(|words| words.iter())
@@ -473,16 +473,16 @@ impl WordTracker {
     /// location.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     /// use rs_wordle_solver::details::LocatedLetter;
     ///
-    /// let all_words = [Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = [Arc::from("bba"), Arc::from("bcd"), Arc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
     ///
     /// assert_eq!(
     ///     Vec::from_iter(tracker.words_with_letter_not_here(LocatedLetter::new('b', 1))),
-    ///     vec![&Rc::from("bcd")]);
+    ///     vec![&Arc::from("bcd")]);
     /// assert_eq!(
     ///     tracker.words_with_letter_not_here(LocatedLetter::new('b', 0)).count(),
     ///     0);
@@ -490,8 +490,8 @@ impl WordTracker {
     ///     tracker.words_with_letter_not_here(LocatedLetter::new('z', 0)).count(),
     ///     0);
     /// ```
-    pub fn words_with_letter_not_here(&self, ll: LocatedLetter) -> impl Iterator<Item = &Rc<str>> {
-        let words_with_letter: &Vec<Rc<str>> = self
+    pub fn words_with_letter_not_here(&self, ll: LocatedLetter) -> impl Iterator<Item = &Arc<str>> {
+        let words_with_letter: &Vec<Arc<str>> = self
             .words_by_letter
             .get(&ll.letter)
             .unwrap_or(&self.empty_list);
@@ -503,35 +503,35 @@ impl WordTracker {
     /// Returns an [`Iterator`] over words that don't have the given letter.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     /// use rs_wordle_solver::details::LocatedLetter;
     ///
-    /// let all_words = [Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = [Arc::from("bba"), Arc::from("bcd"), Arc::from("efg")];
     /// let tracker = WordTracker::from_slice(&all_words);
     ///
     /// assert_eq!(
     ///     Vec::from_iter(tracker.words_without_letter('a')),
-    ///     vec![&Rc::from("bcd"), &Rc::from("efg")]);
+    ///     vec![&Arc::from("bcd"), &Arc::from("efg")]);
     /// assert_eq!(
     ///     Vec::from_iter(tracker.words_without_letter('z')),
     ///     Vec::from_iter(&all_words));
     /// ```
-    pub fn words_without_letter(&self, letter: char) -> impl Iterator<Item = &Rc<str>> {
+    pub fn words_without_letter(&self, letter: char) -> impl Iterator<Item = &Arc<str>> {
         self.all_words
             .iter()
             .filter(move |word| !word.contains(letter))
     }
 }
 
-impl FromIterator<Rc<str>> for WordTracker {
+impl FromIterator<Arc<str>> for WordTracker {
     /// Constructs a `WordTracker`from all words in the given iterator.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     ///
-    /// let all_words = vec![Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = vec![Arc::from("bba"), Arc::from("bcd"), Arc::from("efg")];
     /// let all_words_copy = all_words.clone();
     /// let tracker: WordTracker = all_words.into_iter().collect();
     ///
@@ -540,20 +540,20 @@ impl FromIterator<Rc<str>> for WordTracker {
     #[inline]
     fn from_iter<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = Rc<str>>,
+        T: IntoIterator<Item = Arc<str>>,
     {
         WordTracker::new(iter.into_iter().collect())
     }
 }
 
-impl<'a> FromIterator<&'a Rc<str>> for WordTracker {
+impl<'a> FromIterator<&'a Arc<str>> for WordTracker {
     /// Constructs a `WordTracker`from all words in the given iterator.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::details::WordTracker;
     ///
-    /// let all_words = vec![Rc::from("bba"), Rc::from("bcd"), Rc::from("efg")];
+    /// let all_words = vec![Arc::from("bba"), Arc::from("bcd"), Arc::from("efg")];
     /// let tracker: WordTracker = all_words.iter().collect();
     ///
     /// assert_eq!(tracker.all_words().to_vec(), all_words);
@@ -561,9 +561,9 @@ impl<'a> FromIterator<&'a Rc<str>> for WordTracker {
     #[inline]
     fn from_iter<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = &'a Rc<str>>,
+        T: IntoIterator<Item = &'a Arc<str>>,
     {
-        WordTracker::new(iter.into_iter().map(Rc::clone).collect())
+        WordTracker::new(iter.into_iter().map(Arc::clone).collect())
     }
 }
 

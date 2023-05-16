@@ -2,7 +2,7 @@ use crate::data::*;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::scorers::WordScorer;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::result::Result;
 
 /// Guesses words in order to solve a single Wordle.
@@ -14,10 +14,10 @@ pub trait Guesser {
     ///
     /// Returns `None` if no known words are possible given the known restrictions imposed by
     /// previous calls to [`Self::update()`].
-    fn select_next_guess(&mut self) -> Option<Rc<str>>;
+    fn select_next_guess(&mut self) -> Option<Arc<str>>;
 
     /// Provides read access to the remaining set of possible words in this guesser.
-    fn possible_words(&self) -> &[Rc<str>];
+    fn possible_words(&self) -> &[Arc<str>];
 }
 
 /// Attempts to guess the given word within the maximum number of guesses, using the given word
@@ -95,7 +95,7 @@ pub fn play_game_with_guesser<G: Guesser>(
 /// **Average number of guesses:** 4.49 +/- 1.26
 #[derive(Clone)]
 pub struct RandomGuesser {
-    possible_words: Vec<Rc<str>>,
+    possible_words: Vec<Arc<str>>,
     restrictions: WordRestrictions,
 }
 
@@ -125,17 +125,17 @@ impl Guesser for RandomGuesser {
         Ok(())
     }
 
-    fn select_next_guess(&mut self) -> Option<Rc<str>> {
+    fn select_next_guess(&mut self) -> Option<Arc<str>> {
         if self.possible_words.is_empty() {
             return None;
         }
         let random: usize = rand::random();
         self.possible_words
             .get(random % self.possible_words.len())
-            .map(Rc::clone)
+            .map(Arc::clone)
     }
 
-    fn possible_words(&self) -> &[Rc<str>] {
+    fn possible_words(&self) -> &[Arc<str>] {
         &self.possible_words
     }
 }
@@ -153,7 +153,7 @@ pub enum GuessFrom {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ScoredGuess {
     pub score: i64,
-    pub guess: Rc<str>,
+    pub guess: Arc<str>,
 }
 
 /// Selects the next guess that maximizes the score according to the owned scorer.
@@ -165,8 +165,8 @@ where
     T: WordScorer + Clone,
 {
     guess_mode: GuessFrom,
-    all_unguessed_words: Vec<Rc<str>>,
-    possible_words: Vec<Rc<str>>,
+    all_unguessed_words: Vec<Arc<str>>,
+    possible_words: Vec<Arc<str>>,
     restrictions: WordRestrictions,
     scorer: T,
 }
@@ -184,7 +184,7 @@ where
     /// See [`WordScorer`] for more information about possible scoring algorithms.
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use rs_wordle_solver::GuessFrom;
     /// use rs_wordle_solver::Guesser;
     /// use rs_wordle_solver::MaxScoreGuesser;
@@ -195,7 +195,7 @@ where
     /// let scorer = MaxEliminationsScorer::new(&bank).unwrap();
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
     ///
-    /// assert_eq!(guesser.select_next_guess(), Some(Rc::from("abc")));
+    /// assert_eq!(guesser.select_next_guess(), Some(Arc::from("abc")));
     /// ```
     pub fn new(guess_mode: GuessFrom, word_bank: &WordBank, scorer: T) -> MaxScoreGuesser<T> {
         MaxScoreGuesser {
@@ -221,7 +221,7 @@ where
 
         let mut scored_words: Vec<_> = words_to_score
             .map(|word| ScoredGuess {
-                guess: Rc::clone(word),
+                guess: Arc::clone(word),
                 score: self.scorer.score_word(word),
             })
             .collect();
@@ -250,7 +250,7 @@ where
         Ok(())
     }
 
-    fn select_next_guess(&mut self) -> Option<Rc<str>> {
+    fn select_next_guess(&mut self) -> Option<Arc<str>> {
         if self.guess_mode == GuessFrom::AllUnguessedWords && self.possible_words.len() > 2 {
             let mut best_word = self.all_unguessed_words.get(0);
             let mut best_score = best_word.map_or(0, |word| self.scorer.score_word(word));
@@ -266,9 +266,9 @@ where
                 }
             }
             if !scores_all_same {
-                return best_word.map(Rc::clone);
+                return best_word.map(Arc::clone);
             } else {
-                return self.possible_words.get(0).map(Rc::clone);
+                return self.possible_words.get(0).map(Arc::clone);
             }
         }
 
@@ -276,10 +276,10 @@ where
             .possible_words
             .iter()
             .max_by_key(|word| self.scorer.score_word(word))
-            .map(Rc::clone);
+            .map(Arc::clone);
     }
 
-    fn possible_words(&self) -> &[Rc<str>] {
+    fn possible_words(&self) -> &[Arc<str>] {
         &self.possible_words
     }
 }
