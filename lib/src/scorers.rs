@@ -3,6 +3,7 @@ use crate::restrictions::LetterRestriction;
 use crate::restrictions::WordRestrictions;
 use crate::results::get_result_for_guess;
 use crate::results::WordleError;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::result::Result;
@@ -385,7 +386,7 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// each guess, and chooses the word that eliminates the most other guesses.
 ///
 /// This is a highly effective scoring strategy, but also quite expensive to compute. On my
-/// machine, constructing the scorer for about 4600 words takes about 1.4 seconds, but each
+/// machine, constructing the scorer for about 4600 words takes about 0.5 seconds, but each
 /// subsequent game can be played in about 27ms if the scorer is then cloned before each game.
 ///
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
@@ -440,11 +441,15 @@ impl MaxEliminationsScorer {
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
     pub fn new(all_words: &[Arc<str>]) -> Result<MaxEliminationsScorer, WordleError> {
-        let mut expected_eliminations_per_word: HashMap<Arc<str>, f64> = HashMap::new();
-        for word in all_words {
-            let expected_elimations = compute_expected_eliminations(word, all_words);
-            expected_eliminations_per_word.insert(Arc::clone(word), expected_elimations);
-        }
+        let expected_eliminations_per_word: HashMap<Arc<str>, f64> = all_words
+            .par_iter()
+            .map(|word| {
+                (
+                    Arc::clone(word),
+                    compute_expected_eliminations(word, all_words),
+                )
+            })
+            .collect();
         Ok(MaxEliminationsScorer {
             possible_words: all_words.to_vec(),
             first_expected_eliminations_per_word: expected_eliminations_per_word,
