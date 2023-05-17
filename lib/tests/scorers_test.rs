@@ -5,8 +5,8 @@ use rs_wordle_solver::details::*;
 use rs_wordle_solver::scorers::*;
 use rs_wordle_solver::*;
 
-use std::sync::Arc;
 use std::result::Result;
+use std::sync::Arc;
 
 macro_rules! test_scorer {
     ($construct_scorer_from_bank_fn:ident) => {
@@ -157,7 +157,8 @@ mod max_eliminations_scorer {
 
     #[test]
     fn score_word() {
-        let possible_words: Vec<Arc<str>> = vec![Arc::from("cod"), Arc::from("wod"), Arc::from("mod")];
+        let possible_words: Vec<Arc<str>> =
+            vec![Arc::from("cod"), Arc::from("wod"), Arc::from("mod")];
         let mut scorer = MaxEliminationsScorer::new(&possible_words).unwrap();
 
         assert_eq!(scorer.score_word(&possible_words[0]), 1333);

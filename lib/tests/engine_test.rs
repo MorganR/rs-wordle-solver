@@ -4,8 +4,8 @@ extern crate assert_matches;
 use rs_wordle_solver::scorers::*;
 use rs_wordle_solver::*;
 
-use std::sync::Arc;
 use std::result::Result;
+use std::sync::Arc;
 
 #[test]
 fn random_guesser_select_next_guess_no_words() -> Result<(), WordleError> {

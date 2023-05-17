@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::io;
 use std::ops::Deref;
-use std::sync::Arc;
 use std::result::Result;
+use std::sync::Arc;
 
 /// A letter along with its location in the word.
 ///

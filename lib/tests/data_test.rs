@@ -5,8 +5,8 @@ use rs_wordle_solver::details::*;
 use rs_wordle_solver::*;
 
 use std::io::Cursor;
-use std::sync::Arc;
 use std::result::Result;
+use std::sync::Arc;
 
 macro_rules! assert_arc_eq {
     ($arc_vec:expr, $non_arc_vec:expr) => {

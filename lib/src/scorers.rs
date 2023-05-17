@@ -5,8 +5,8 @@ use crate::results::get_result_for_guess;
 use crate::results::WordleError;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::sync::Arc;
 use std::result::Result;
+use std::sync::Arc;
 
 /// Gives words a score, where the maximum score indicates the best guess.
 ///

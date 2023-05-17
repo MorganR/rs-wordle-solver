@@ -2,8 +2,8 @@ use crate::data::*;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::scorers::WordScorer;
-use std::sync::Arc;
 use std::result::Result;
+use std::sync::Arc;
 
 /// Guesses words in order to solve a single Wordle.
 pub trait Guesser {
