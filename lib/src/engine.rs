@@ -1,9 +1,13 @@
+use rayon::prelude::*;
+
 use crate::data::*;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::scorers::WordScorer;
 use std::result::Result;
 use std::sync::Arc;
+
+const MIN_PARALLELIZATION_LIMIT: usize = 1000;
 
 /// Guesses words in order to solve a single Wordle.
 pub trait Guesser {
@@ -162,7 +166,7 @@ pub struct ScoredGuess {
 #[derive(Clone)]
 pub struct MaxScoreGuesser<T>
 where
-    T: WordScorer + Clone,
+    T: WordScorer + Clone + Sync,
 {
     guess_mode: GuessFrom,
     all_unguessed_words: Vec<Arc<str>>,
@@ -173,7 +177,7 @@ where
 
 impl<T> MaxScoreGuesser<T>
 where
-    T: WordScorer + Clone,
+    T: WordScorer + Clone + Sync,
 {
     /// Constructs a new `MaxScoreGuesser` that will guess the word with the maximum score
     /// according to the given [`WordScorer`]. This will only score and guess from the words in the
@@ -211,28 +215,43 @@ where
     ///
     /// Returns an empty vector if no known words are possible given the known restrictions imposed
     /// by previous calls to [`Self::update()`].
-    pub fn select_top_n_guesses(&mut self, n: usize) -> Vec<ScoredGuess> {
+    pub fn select_top_n_guesses(&self, n: usize) -> Vec<ScoredGuess> {
         let words_to_score = match self.guess_mode {
             // Only score possible words if we're down to the last two guesses.
-            _ if self.possible_words.len() <= 2 => self.possible_words.iter(),
-            GuessFrom::AllUnguessedWords => self.all_unguessed_words.iter(),
-            GuessFrom::PossibleWords => self.possible_words.iter(),
+            _ if self.possible_words.len() <= 2 => &self.possible_words,
+            GuessFrom::AllUnguessedWords => &self.all_unguessed_words,
+            GuessFrom::PossibleWords => &self.possible_words,
         };
 
-        let mut scored_words: Vec<_> = words_to_score
-            .map(|word| ScoredGuess {
+        let scored_words = if words_to_score.len() > MIN_PARALLELIZATION_LIMIT {
+            let mut scored_words: Vec<(&Arc<str>, i64)> = words_to_score
+                .par_iter()
+                .map(|word| (word, self.scorer.score_word(word)))
+                .collect();
+            scored_words.par_sort_unstable_by_key(|(_, score)| -score);
+            scored_words
+        } else {
+            let mut scored_words: Vec<(&Arc<str>, i64)> = words_to_score
+                .iter()
+                .map(|word| (word, self.scorer.score_word(word)))
+                .collect();
+            scored_words.sort_unstable_by_key(|(_, score)| -score);
+            scored_words
+        };
+        return scored_words
+            .into_iter()
+            .take(n)
+            .map(|(word, score)| ScoredGuess {
                 guess: Arc::clone(word),
-                score: self.scorer.score_word(word),
+                score,
             })
             .collect();
-        scored_words.sort_unstable();
-        return scored_words.into_iter().rev().take(n).collect();
     }
 }
 
 impl<T> Guesser for MaxScoreGuesser<T>
 where
-    T: WordScorer + Clone,
+    T: WordScorer + Clone + Sync,
 {
     fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError> {
         if let Some(position) = self
@@ -252,24 +271,38 @@ where
 
     fn select_next_guess(&mut self) -> Option<Arc<str>> {
         if self.guess_mode == GuessFrom::AllUnguessedWords && self.possible_words.len() > 2 {
-            let mut best_word = self.all_unguessed_words.get(0);
-            let mut best_score = best_word.map_or(0, |word| self.scorer.score_word(word));
-            let mut scores_all_same = true;
-            for word in self.all_unguessed_words.iter() {
-                let score = self.scorer.score_word(word);
-                if best_score != score {
-                    scores_all_same = false;
-                    if best_score < score {
-                        best_score = score;
-                        best_word = Some(word);
-                    }
-                }
-            }
-            if !scores_all_same {
-                return best_word.map(Arc::clone);
+            let empty_word = Arc::from("");
+            let (best_score, worst_score, best_word) = self
+                .all_unguessed_words
+                .par_iter()
+                .map(|word| {
+                    let score = self.scorer.score_word(word);
+                    // Return score twice so we can accumulate everything via a single `reduce` call.
+                    (score, score, word)
+                })
+                .reduce(
+                    || (i64::MIN, i64::MAX, &empty_word),
+                    |(max_score, min_score, best_word), (score, _, word)| {
+                        if score > max_score {
+                            (score, std::cmp::min(min_score, score), word)
+                        } else {
+                            (max_score, std::cmp::min(min_score, score), best_word)
+                        }
+                    },
+                );
+            if !best_word.is_empty() && best_score != worst_score {
+                return Some(Arc::clone(best_word));
             } else {
                 return self.possible_words.get(0).map(Arc::clone);
             }
+        }
+
+        if self.possible_words.len() > MIN_PARALLELIZATION_LIMIT {
+            return self
+                .possible_words
+                .par_iter()
+                .max_by_key(|word| self.scorer.score_word(word))
+                .map(Arc::clone);
         }
 
         return self

@@ -36,7 +36,7 @@ pub trait WordScorer {
         possible_words: &[Arc<str>],
     ) -> Result<(), WordleError>;
     /// Determines a score for the given word. The higher the score, the better the guess.
-    fn score_word(&mut self, word: &Arc<str>) -> i64;
+    fn score_word(&self, word: &Arc<str>) -> i64;
 }
 
 /// Scores words by the number of unique words that have the same letter (in any location), summed
@@ -112,7 +112,7 @@ impl WordScorer for MaxUniqueLetterFrequencyScorer {
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Arc<str>) -> i64 {
+    fn score_word(&self, word: &Arc<str>) -> i64 {
         let mut sum = 0;
         for (index, letter) in word.char_indices() {
             if (index > 0
@@ -216,7 +216,7 @@ impl WordScorer for LocatedLettersScorer {
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Arc<str>) -> i64 {
+    fn score_word(&self, word: &Arc<str>) -> i64 {
         let mut sum = 0;
         for (index, letter) in word.char_indices() {
             let located_letter = LocatedLetter::new(letter, index as u8);
@@ -377,7 +377,7 @@ impl WordScorer for MaxApproximateEliminationsScorer {
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Arc<str>) -> i64 {
+    fn score_word(&self, word: &Arc<str>) -> i64 {
         (self.compute_expected_eliminations(word.as_ref()) * 1000.0) as i64
     }
 }
@@ -457,7 +457,7 @@ impl MaxEliminationsScorer {
         })
     }
 
-    fn compute_expected_eliminations(&mut self, word: &Arc<str>) -> f64 {
+    fn compute_expected_eliminations(&self, word: &Arc<str>) -> f64 {
         compute_expected_eliminations(word, &self.possible_words)
     }
 }
@@ -493,7 +493,7 @@ impl WordScorer for MaxEliminationsScorer {
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Arc<str>) -> i64 {
+    fn score_word(&self, word: &Arc<str>) -> i64 {
         if self.is_first_round {
             if let Some(expected_elimations) = self.first_expected_eliminations_per_word.get(word) {
                 return (expected_elimations * 1000.0) as i64;
@@ -630,7 +630,7 @@ impl WordScorer for MaxComboEliminationsScorer {
         Ok(())
     }
 
-    fn score_word(&mut self, word: &Arc<str>) -> i64 {
+    fn score_word(&self, word: &Arc<str>) -> i64 {
         if self.is_first_round {
             if let Some(expected_elimations) = self.first_expected_eliminations_per_word.get(word) {
                 return (expected_elimations * 1000.0) as i64;

@@ -65,7 +65,7 @@ mod score_located_letters {
     fn score_word() -> Result<(), WordleError> {
         let bank =
             WordBank::from_iterator(vec!["alpha", "allot", "begot", "below", "endow", "ingot"])?;
-        let mut scorer = LocatedLettersScorer::new(&bank);
+        let scorer = LocatedLettersScorer::new(&bank);
 
         assert_eq!(scorer.score_word(&Arc::from("alpha")), 4 + 5 + 2 + 2 + 1);
         assert_eq!(scorer.score_word(&Arc::from("allot")), 4 + 5 + 2 + 10 + 6);
@@ -159,7 +159,7 @@ mod max_eliminations_scorer {
     fn score_word() {
         let possible_words: Vec<Arc<str>> =
             vec![Arc::from("cod"), Arc::from("wod"), Arc::from("mod")];
-        let mut scorer = MaxEliminationsScorer::new(&possible_words).unwrap();
+        let scorer = MaxEliminationsScorer::new(&possible_words).unwrap();
 
         assert_eq!(scorer.score_word(&possible_words[0]), 1333);
         assert_eq!(scorer.score_word(&Arc::from("mwc")), 2000);
