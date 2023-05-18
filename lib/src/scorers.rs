@@ -554,12 +554,9 @@ impl MaxComboEliminationsScorer {
             is_first_round: true,
             min_possible_words_for_combo,
         };
-        for word in all_words {
-            let expected_elimations = scorer.compute_expected_eliminations(word);
-            scorer
-                .first_expected_eliminations_per_word
-                .insert(Arc::clone(word), expected_elimations);
-        }
+        scorer.first_expected_eliminations_per_word = all_words.par_iter()
+            .map(|word| (Arc::clone(word), scorer.compute_expected_combo_eliminations(word)))
+            .collect();
         Ok(scorer)
     }
 
