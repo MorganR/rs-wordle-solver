@@ -15,9 +15,9 @@ use test::Bencher;
 #[bench]
 fn bench_guess_random_wordle_words(b: &mut Bencher) -> Result<(), WordleError> {
     let test_words = io::BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
-    let mut all_words = io::BufReader::new(File::open("../data/wordle-words.txt")?);
+    let all_words = io::BufReader::new(File::open("../data/wordle-words.txt")?);
 
-    let bank = WordBank::from_reader(&mut all_words)?;
+    let bank = WordBank::from_reader(all_words)?;
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
@@ -33,9 +33,9 @@ fn bench_guess_random_wordle_words(b: &mut Bencher) -> Result<(), WordleError> {
 #[bench]
 fn bench_guess_random_improved_words(b: &mut Bencher) -> Result<(), WordleError> {
     let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
+    let all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
-    let bank = WordBank::from_reader(&mut all_words)?;
+    let bank = WordBank::from_reader(all_words)?;
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
@@ -51,9 +51,9 @@ fn bench_guess_random_improved_words(b: &mut Bencher) -> Result<(), WordleError>
 #[bench]
 fn bench_unique_letters_improved_words(b: &mut Bencher) -> Result<(), WordleError> {
     let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
+    let all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
-    let bank = WordBank::from_reader(&mut all_words)?;
+    let bank = WordBank::from_reader(all_words)?;
     let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
@@ -71,9 +71,9 @@ fn bench_unique_letters_improved_words(b: &mut Bencher) -> Result<(), WordleErro
 #[bench]
 fn bench_located_letters_improved_words(b: &mut Bencher) -> Result<(), WordleError> {
     let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
+    let all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
-    let bank = WordBank::from_reader(&mut all_words)?;
+    let bank = WordBank::from_reader(all_words)?;
     let scorer = LocatedLettersScorer::new(&bank);
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
@@ -91,9 +91,9 @@ fn bench_located_letters_improved_words(b: &mut Bencher) -> Result<(), WordleErr
 #[bench]
 fn bench_max_approximate_eliminations_improved_words(b: &mut Bencher) -> Result<(), WordleError> {
     let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
+    let all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
-    let bank = WordBank::from_reader(&mut all_words)?;
+    let bank = WordBank::from_reader(all_words)?;
     let scorer = MaxApproximateEliminationsScorer::new(&bank);
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
@@ -113,9 +113,9 @@ fn bench_max_eliminations_scorer_with_precomputed_improved_words(
     b: &mut Bencher,
 ) -> std::result::Result<(), Box<dyn Error>> {
     let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
+    let all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
-    let bank = WordBank::from_reader(&mut all_words)?;
+    let bank = WordBank::from_reader(all_words)?;
     let scorer = MaxEliminationsScorer::new(&bank)?;
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
@@ -139,6 +139,69 @@ fn bench_max_eliminations_scorer_precompute_improved_words(
 
     b.iter(|| {
         return MaxEliminationsScorer::new(&bank);
+    });
+
+    Ok(())
+}
+
+#[bench]
+fn bench_select_top_5_guesses_all(b: &mut Bencher) -> Result<(), WordleError> {
+    let all_words = io::BufReader::new(File::open("../data/wordle-words.txt")?);
+
+    let bank = WordBank::from_reader(all_words)?;
+    let scorer = MaxEliminationsScorer::new(&bank)?;
+
+    b.iter(|| {
+        let guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer.clone());
+        guesser.select_top_n_guesses(5)
+    });
+
+    Ok(())
+}
+
+#[bench]
+fn bench_select_top_5_guesses_post_guess_all(b: &mut Bencher) -> Result<(), WordleError> {
+    let test_words = io::BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
+    let all_words = io::BufReader::new(File::open("../data/wordle-words.txt")?);
+
+    let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
+    let mut test_word_iter = test_words.iter().cycle();
+
+    let bank = WordBank::from_reader(all_words)?;
+    let scorer = MaxEliminationsScorer::new(&bank)?;
+
+    let guess = "tares";
+
+    b.iter(|| {
+        let test_word = test_word_iter.next().unwrap();
+        let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer.clone());
+        let result = get_result_for_guess(&test_word, guess);
+        guesser.update(&result.unwrap()).unwrap();
+        guesser.select_top_n_guesses(5)
+    });
+
+    Ok(())
+}
+
+#[bench]
+fn bench_select_top_5_guesses_post_guess_possible_only(b: &mut Bencher) -> Result<(), WordleError> {
+    let test_words = io::BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
+    let all_words = io::BufReader::new(File::open("../data/wordle-words.txt")?);
+
+    let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
+    let mut test_word_iter = test_words.iter().cycle();
+
+    let bank = WordBank::from_reader(all_words)?;
+    let scorer = MaxEliminationsScorer::new(&bank)?;
+
+    let guess = "tares";
+
+    b.iter(|| {
+        let test_word = test_word_iter.next().unwrap();
+        let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer.clone());
+        let result = get_result_for_guess(&test_word, guess);
+        guesser.update(&result.unwrap()).unwrap();
+        guesser.select_top_n_guesses(5)
     });
 
     Ok(())
