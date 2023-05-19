@@ -5,11 +5,11 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::BufRead;
-use std::num::NonZeroUsize;
 use std::result::Result;
 use std::sync::Arc;
-use std::thread;
 use std::time::Instant;
+
+const MIN_WORD_LIMIT_FOR_COMBO: usize = 256;
 
 /// Simple program to run a Wordle game in reverse, where the computer guesses the word.
 #[derive(Parser, Debug)]
@@ -159,33 +159,7 @@ fn run_benchmark(
             .collect(),
     );
 
-    let num_workers = thread::available_parallelism()
-        .map(NonZeroUsize::get)
-        .unwrap_or(1);
-    let mut worker_handles: Vec<thread::JoinHandle<Vec<GameResult>>> =
-        Vec::with_capacity(num_workers);
-    let words_per_worker = num_bench_words / num_workers;
-    let remaining_words = num_bench_words % num_workers;
-    let mut base_word_index = 0;
-
-    for i in 0..num_workers {
-        let mut next_word_index = base_word_index + words_per_worker;
-        if i == 0 {
-            next_word_index += remaining_words;
-        }
-        let bench_words_view = Arc::clone(&bench_words);
-        let all_words_view = Arc::clone(&all_words);
-
-        worker_handles.push(thread::spawn(move || {
-            benchmark_words(
-                &bench_words_view[base_word_index..next_word_index],
-                all_words_view,
-                guesser_impl,
-                guess_from,
-            )
-        }));
-        base_word_index = next_word_index;
-    }
+    let results = benchmark_words(&bench_words, all_words, guesser_impl, guess_from);
 
     let mut first_guess: Box<str> = Box::from("");
     let possible_word_buckets = vec![1, 2, 4, 8, 16, 32, 64, 96, 128, 256, 512, 1024, 2048];
@@ -197,64 +171,61 @@ fn run_benchmark(
     let mut possible_words_count_1_from_end = vec![0; 13];
     let mut possible_words_count_2_from_end = vec![0; 13];
     let mut possible_words_count_3_from_end = vec![0; 13];
-    for handle in worker_handles {
-        let results = handle.join().expect("Error on join.");
-        for result in results {
-            if let GameResult::Success(data) = result {
-                num_guesses_per_game.push(data.turns.len() as u32);
-                first_guess = data.turns[0].guess.clone();
-                if data.turns.len() > 1 {
-                    *second_guess_count
-                        .entry(data.turns[1].guess.clone())
+    for result in results {
+        if let GameResult::Success(data) = result {
+            num_guesses_per_game.push(data.turns.len() as u32);
+            first_guess = data.turns[0].guess.clone();
+            if data.turns.len() > 1 {
+                *second_guess_count
+                    .entry(data.turns[1].guess.clone())
+                    .or_default() += 1;
+                if data.turns.len() > 2 {
+                    *third_guess_count
+                        .entry(data.turns[2].guess.clone())
                         .or_default() += 1;
-                    if data.turns.len() > 2 {
-                        *third_guess_count
-                            .entry(data.turns[2].guess.clone())
-                            .or_default() += 1;
-                    }
                 }
-                for (index, num_possible_words) in data
-                    .turns
+            }
+            for (index, num_possible_words) in data
+                .turns
+                .iter()
+                .map(|turn| turn.num_possible_words_before_guess)
+                .enumerate()
+            {
+                let bucket_index = possible_word_buckets
                     .iter()
-                    .map(|turn| turn.num_possible_words_before_guess)
                     .enumerate()
-                {
-                    let bucket_index = possible_word_buckets
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, bucket_min)| **bucket_min <= num_possible_words)
-                        .map(|(bucket_index, _)| bucket_index)
-                        .last()
-                        .unwrap();
-                    match index {
-                        0 => possible_words_count_0[bucket_index] += 1,
-                        1 => possible_words_count_1[bucket_index] += 1,
-                        2 => possible_words_count_2[bucket_index] += 1,
-                        3 => possible_words_count_3[bucket_index] += 1,
-                        _ => break,
-                    }
+                    .filter(|(_, bucket_min)| **bucket_min <= num_possible_words)
+                    .map(|(bucket_index, _)| bucket_index)
+                    .last()
+                    .unwrap();
+                match index {
+                    0 => possible_words_count_0[bucket_index] += 1,
+                    1 => possible_words_count_1[bucket_index] += 1,
+                    2 => possible_words_count_2[bucket_index] += 1,
+                    3 => possible_words_count_3[bucket_index] += 1,
+                    _ => break,
                 }
-                for (index, num_possible_words) in data
-                    .turns
+            }
+            for (index, num_possible_words) in data
+                .turns
+                .iter()
+                .rev()
+                .map(|turn| turn.num_possible_words_before_guess)
+                .enumerate()
+            {
+                let bucket_index = possible_word_buckets
                     .iter()
-                    .rev()
-                    .map(|turn| turn.num_possible_words_before_guess)
                     .enumerate()
-                {
-                    let bucket_index = possible_word_buckets
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, bucket_min)| **bucket_min <= num_possible_words)
-                        .map(|(bucket_index, _)| bucket_index)
-                        .last()
-                        .unwrap();
-                    match index {
-                        0 => possible_words_count_0_from_end[bucket_index] += 1,
-                        1 => possible_words_count_1_from_end[bucket_index] += 1,
-                        2 => possible_words_count_2_from_end[bucket_index] += 1,
-                        3 => possible_words_count_3_from_end[bucket_index] += 1,
-                        _ => break,
-                    }
+                    .filter(|(_, bucket_min)| **bucket_min <= num_possible_words)
+                    .map(|(bucket_index, _)| bucket_index)
+                    .last()
+                    .unwrap();
+                match index {
+                    0 => possible_words_count_0_from_end[bucket_index] += 1,
+                    1 => possible_words_count_1_from_end[bucket_index] += 1,
+                    2 => possible_words_count_2_from_end[bucket_index] += 1,
+                    3 => possible_words_count_3_from_end[bucket_index] += 1,
+                    _ => break,
                 }
             }
         }
@@ -386,9 +357,10 @@ fn benchmark_words(
         _ => None,
     };
     let maybe_max_combo_eliminations_scorer = match guesser_impl {
-        GuesserImpl::MaxComboEliminations => {
-            Some(MaxComboEliminationsScorer::new(&word_bank, 1000).unwrap())
-        }
+        GuesserImpl::MaxComboEliminations => Some(
+            MaxComboEliminationsScorer::new(&word_bank, MIN_WORD_LIMIT_FOR_COMBO)
+                .unwrap(),
+        ),
         _ => None,
     };
     println!(
@@ -534,7 +506,10 @@ fn play_single_game(
             MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxComboEliminationsScorer::new(word_bank, 1000)?,
+                MaxComboEliminationsScorer::new(
+                    word_bank,
+                    MIN_WORD_LIMIT_FOR_COMBO,
+                )?,
             ),
         ),
     };
@@ -597,7 +572,10 @@ fn play_interactive_game(
             play_interactive_game_with_guesser(MaxScoreGuesser::new(
                 guess_from.into(),
                 word_bank,
-                MaxComboEliminationsScorer::new(word_bank, 1000)?,
+                MaxComboEliminationsScorer::new(
+                    word_bank,
+                    MIN_WORD_LIMIT_FOR_COMBO,
+                )?,
             ))
         }
     }
