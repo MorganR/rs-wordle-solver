@@ -358,7 +358,7 @@ fn benchmark_words(
     };
     let maybe_max_combo_eliminations_scorer = match guesser_impl {
         GuesserImpl::MaxComboEliminations => Some(
-            MaxComboEliminationsScorer::new(&word_bank, MIN_WORD_LIMIT_FOR_COMBO)
+            MaxComboEliminationsScorer::new(&word_bank, guess_from.into(), MIN_WORD_LIMIT_FOR_COMBO)
                 .unwrap(),
         ),
         _ => None,
@@ -508,6 +508,7 @@ fn play_single_game(
                 word_bank,
                 MaxComboEliminationsScorer::new(
                     word_bank,
+                    guess_from.into(),
                     MIN_WORD_LIMIT_FOR_COMBO,
                 )?,
             ),
@@ -574,6 +575,7 @@ fn play_interactive_game(
                 word_bank,
                 MaxComboEliminationsScorer::new(
                     word_bank,
+                    guess_from.into(),
                     MIN_WORD_LIMIT_FOR_COMBO,
                 )?,
             ))

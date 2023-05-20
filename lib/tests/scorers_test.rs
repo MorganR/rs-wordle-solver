@@ -198,3 +198,75 @@ mod max_eliminations_scorer {
         Ok(())
     }
 }
+
+mod max_combo_eliminations_scorer {
+
+    use super::*;
+
+    fn create_scorer(bank: &WordBank) -> MaxComboEliminationsScorer {
+        MaxComboEliminationsScorer::new(bank, GuessFrom::PossibleWords, 3).unwrap()
+    }
+
+    test_scorer!(create_scorer);
+
+    #[test]
+    fn score_word_under_combo_limit() {
+        let possible_words: Vec<Arc<str>> =
+            vec![Arc::from("cod"), Arc::from("wod"), Arc::from("mod")];
+        let scorer =
+            MaxComboEliminationsScorer::new(&possible_words, GuessFrom::PossibleWords, 3).unwrap();
+
+        // Eliminates 2 in one case (correct), else eliminates 1 in the first guess and 1 more in the second.
+        assert_eq!(scorer.score_word(&possible_words[0]), 1333);
+        assert_eq!(scorer.score_word(&Arc::from("mwc")), 2000);
+        assert_eq!(scorer.score_word(&Arc::from("zzz")), 0);
+    }
+
+    #[test]
+    fn score_word_over_combo_limit() {
+        let possible_words: Vec<Arc<str>> =
+            vec![Arc::from("cod"), Arc::from("wod"), Arc::from("mod")];
+        let scorer =
+            MaxComboEliminationsScorer::new(&possible_words, GuessFrom::PossibleWords, 2).unwrap();
+
+        // Eliminates 2 in one case (correct), else eliminates 1 in the first guess and 1 more in the second.
+        assert_eq!(scorer.score_word(&possible_words[0]), 2033);
+        assert_eq!(scorer.score_word(&Arc::from("mwc")), 2100);
+        // First guess tells us nothing, second guess should eliminate 1.3 words.
+        assert_eq!(scorer.score_word(&Arc::from("zzz")), 1333);
+    }
+
+    #[test]
+    fn score_word_after_update() -> Result<(), WordleError> {
+        let possible_words: Vec<Arc<str>> = vec![
+            Arc::from("abb"),
+            Arc::from("abc"),
+            Arc::from("bad"),
+            Arc::from("zza"),
+            Arc::from("zzz"),
+        ];
+        let mut scorer =
+            MaxComboEliminationsScorer::new(&possible_words, GuessFrom::PossibleWords, 2).unwrap();
+
+        let restrictions = WordRestrictions::from_result(&GuessResult {
+            guess: "zza",
+            results: vec![
+                LetterResult::NotPresent,
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+            ],
+        });
+        scorer.update("zza", &restrictions, &Vec::from(&possible_words[0..3]))?;
+        // Still possible: abb, abc, bad
+
+        // Eliminates 2 in all cases.
+        assert_eq!(scorer.score_word(&possible_words[0]), 2100);
+        // Eliminates 2 in all cases.
+        assert_eq!(scorer.score_word(&possible_words[1]), 2100);
+        // Could be true in one case (elimnate 2), or false in 2 cases (eliminate 1), in which case
+        // the second guess will eliminate the other.
+        assert_eq!(scorer.score_word(&possible_words[2]), 2033);
+        assert_eq!(scorer.score_word(&Arc::from("zzz")), 2000);
+        Ok(())
+    }
+}

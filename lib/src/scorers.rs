@@ -3,6 +3,7 @@ use crate::restrictions::LetterRestriction;
 use crate::restrictions::WordRestrictions;
 use crate::results::get_result_for_guess;
 use crate::results::WordleError;
+use crate::GuessFrom;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -446,7 +447,7 @@ impl MaxEliminationsScorer {
             .map(|word| {
                 (
                     Arc::clone(word),
-                    compute_expected_eliminations(word, all_words),
+                    compute_expected_eliminations(word, all_words.iter(), all_words.len()),
                 )
             })
             .collect();
@@ -458,12 +459,22 @@ impl MaxEliminationsScorer {
     }
 
     fn compute_expected_eliminations(&self, word: &Arc<str>) -> f64 {
-        compute_expected_eliminations(word, &self.possible_words)
+        compute_expected_eliminations(word, self.possible_words.iter(), self.possible_words.len())
     }
 }
 
-fn compute_expected_eliminations(word: &Arc<str>, possible_words: &[Arc<str>]) -> f64 {
+fn compute_expected_eliminations<W, I, T>(
+    word: W,
+    possible_words: I,
+    num_possible_words: usize,
+) -> f64
+where
+    W: AsRef<str>,
+    I: Iterator<Item = T>,
+    T: AsRef<str>,
+{
     let mut matching_results: HashMap<CompressedGuessResult, usize> = HashMap::new();
+
     for possible_word in possible_words {
         let guess_result = CompressedGuessResult::from_results(
             &get_result_for_guess(possible_word.as_ref(), word.as_ref())
@@ -473,7 +484,6 @@ fn compute_expected_eliminations(word: &Arc<str>, possible_words: &[Arc<str>]) -
         .unwrap();
         *matching_results.entry(guess_result).or_insert(0) += 1;
     }
-    let num_possible_words = possible_words.len();
     matching_results.into_values().fold(0, |acc, num_matched| {
         let num_eliminated = num_possible_words - num_matched;
         acc + num_eliminated * num_matched
@@ -511,8 +521,9 @@ impl WordScorer for MaxEliminationsScorer {
 /// should probably use that instead. Constructing this solver with 4602 words takes almost 6 hours.
 #[derive(Clone)]
 pub struct MaxComboEliminationsScorer {
-    all_words: Vec<Arc<str>>,
+    words_to_guess: Vec<Arc<str>>,
     possible_words: Vec<Arc<str>>,
+    guess_from: GuessFrom,
     first_expected_eliminations_per_word: HashMap<Arc<str>, f64>,
     is_first_round: bool,
     min_possible_words_for_combo: usize,
@@ -538,24 +549,28 @@ impl MaxComboEliminationsScorer {
     /// use rs_wordle_solver::scorers::MaxComboEliminationsScorer;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
-    /// let scorer = MaxComboEliminationsScorer::new(&bank, 1000).unwrap();
-    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
+    /// let guess_from = GuessFrom::AllUnguessedWords;
+    /// let scorer = MaxComboEliminationsScorer::new(&bank, guess_from, 1000).unwrap();
+    /// let mut guesser = MaxScoreGuesser::new(guess_from, &bank, scorer);
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
     pub fn new(
         all_words: &[Arc<str>],
+        guess_from: GuessFrom,
         min_possible_words_for_combo: usize,
     ) -> Result<MaxComboEliminationsScorer, WordleError> {
         let mut scorer = MaxComboEliminationsScorer {
-            all_words: all_words.iter().map(Arc::clone).collect(),
+            words_to_guess: all_words.iter().map(Arc::clone).collect(),
             possible_words: all_words.iter().map(Arc::clone).collect(),
+            guess_from,
             first_expected_eliminations_per_word: HashMap::new(),
             is_first_round: true,
             min_possible_words_for_combo,
         };
-        scorer.first_expected_eliminations_per_word = all_words.par_iter()
-            .map(|word| (Arc::clone(word), scorer.compute_expected_combo_eliminations(word)))
+        scorer.first_expected_eliminations_per_word = all_words
+            .par_iter()
+            .map(|word| (Arc::clone(word), scorer.compute_expected_eliminations(word)))
             .collect();
         Ok(scorer)
     }
@@ -564,76 +579,134 @@ impl MaxComboEliminationsScorer {
         if self.possible_words.len() > self.min_possible_words_for_combo {
             self.compute_expected_combo_eliminations(word)
         } else {
-            compute_expected_eliminations(word, &self.possible_words)
+            compute_expected_eliminations(
+                word,
+                self.possible_words.iter(),
+                self.possible_words.len(),
+            )
         }
     }
 
     fn compute_expected_combo_eliminations(&self, word: &Arc<str>) -> f64 {
-        let mut best_expected_eliminations = 0.0;
+        let mut total_expected_eliminations = 0.0;
         let num_possible_words = self.possible_words.len();
-        let mut first_guess_result_per_objective: HashMap<Arc<str>, CompressedGuessResult> =
-            HashMap::with_capacity(num_possible_words);
+        // Get an `&str` version of all remaining words to guess, excluding this word, to simplify
+        // choosing a second guess in the inner loop.
+        let words_to_guess: Vec<&str> = self
+            .words_to_guess
+            .iter()
+            .filter_map(|w| match w {
+                _ if w == word => None,
+                _ => Some(w.as_ref()),
+            })
+            .collect();
+
+        let mut total_eliminations_for_first_result =
+            HashMap::with_capacity(self.possible_words.len());
+
+        // For each possible objective word, which have equal probability, compute how many words we
+        // can expect to eliminate by making this guess.
         for possible_objective in &self.possible_words {
+            // Compute how many words would be eliminated if this is the objective.
             let first_guess_result =
                 get_result_for_guess(possible_objective.as_ref(), word.as_ref()).unwrap();
-            let compressed_result =
+
+            // If we have seen this pattern before, then we already know the expected eliminations.
+            let compressed_first_result =
                 CompressedGuessResult::from_results(&first_guess_result.results).unwrap();
-            first_guess_result_per_objective
-                .insert(Arc::clone(possible_objective), compressed_result);
-        }
-        for second_guess in &self.all_words {
-            let mut matching_results: HashMap<
-                (CompressedGuessResult, CompressedGuessResult),
-                usize,
-            > = HashMap::new();
-            for possible_objective in &self.possible_words {
-                let second_guess_result =
-                    get_result_for_guess(possible_objective.as_ref(), second_guess.as_ref())
-                        .unwrap();
-                let compressed_first_result = unsafe {
-                    first_guess_result_per_objective
-                        .get(possible_objective)
-                        .unwrap_unchecked()
-                };
-                let compressed_second_result =
-                    CompressedGuessResult::from_results(&second_guess_result.results).unwrap();
-                *matching_results
-                    .entry((*compressed_first_result, compressed_second_result))
-                    .or_insert(0) += 1;
+            if let Some(known_eliminations) =
+                total_eliminations_for_first_result.get(&compressed_first_result)
+            {
+                total_expected_eliminations += known_eliminations;
+                continue;
             }
-            let expected_eliminations =
-                matching_results.into_values().fold(0, |acc, num_matched| {
-                    let num_eliminated = num_possible_words - num_matched;
-                    acc + num_eliminated * num_matched
-                }) as f64
-                    / num_possible_words as f64;
-            if best_expected_eliminations < expected_eliminations {
-                best_expected_eliminations = expected_eliminations;
+
+            let updated_restrictions = WordRestrictions::from_result(&first_guess_result);
+            let still_possible_words: Vec<&str> = self
+                .possible_words
+                .iter()
+                .filter_map(|pw| match updated_restrictions.is_satisfied_by(pw) {
+                    true => Some(pw.as_ref()),
+                    false => None,
+                })
+                .collect();
+            let mut first_eliminated = (num_possible_words - still_possible_words.len()) as f64;
+
+            // If this results in finding the solution, then skip checking a second guess.
+            if still_possible_words.len() == 1 {
+                first_eliminated += 0.1;
+                total_expected_eliminations += first_eliminated;
+                total_eliminations_for_first_result
+                    .insert(compressed_first_result, first_eliminated);
+                continue;
             }
+
+            // Now compute how many words would be eliminated for each possible second guess.
+            let second_words_to_guess = match self.guess_from {
+                GuessFrom::AllUnguessedWords => &words_to_guess,
+                GuessFrom::PossibleWords => &still_possible_words,
+            };
+            // Just pay attention to the best second guess, since we will choose the best guess, not
+            // guess randomly.
+            let mut best_second_eliminations = 0.0;
+            for &second_guess in second_words_to_guess.into_iter() {
+                // We have to fully compute the best guess against all remaining possible solutions
+                // not just the currently chosen solution, because we still won't know what the
+                // solution is when we make that choice.
+                let expected_second_eliminations = compute_expected_eliminations(
+                    second_guess,
+                    still_possible_words.iter(),
+                    still_possible_words.len(),
+                );
+                if expected_second_eliminations > best_second_eliminations {
+                    best_second_eliminations = expected_second_eliminations;
+                }
+            }
+            let expected_eliminations = first_eliminated + best_second_eliminations;
+            total_eliminations_for_first_result
+                .insert(compressed_first_result, expected_eliminations);
+            total_expected_eliminations += expected_eliminations;
         }
-        best_expected_eliminations
+        // Take the average as the expectation value (again, we assume at this point that each
+        // remaining possible objective is equally likely).
+        return total_expected_eliminations / num_possible_words as f64;
     }
 }
 
 impl WordScorer for MaxComboEliminationsScorer {
     fn update(
         &mut self,
-        _latest_guess: &str,
+        latest_guess: &str,
         _restrictions: &WordRestrictions,
         possible_words: &[Arc<str>],
     ) -> Result<(), WordleError> {
         self.possible_words = possible_words.to_vec();
+        match self.guess_from {
+            GuessFrom::AllUnguessedWords => {
+                self.words_to_guess
+                    .par_iter()
+                    .position_any(|w| w.as_ref() == latest_guess)
+                    .and_then(|i| {
+                        self.words_to_guess.swap_remove(i);
+                        Some(())
+                    });
+            }
+            GuessFrom::PossibleWords => {
+                self.words_to_guess = possible_words.to_vec();
+            }
+        }
         self.is_first_round = false;
         Ok(())
     }
 
     fn score_word(&self, word: &Arc<str>) -> i64 {
         if self.is_first_round {
-            if let Some(expected_elimations) = self.first_expected_eliminations_per_word.get(word) {
-                return (expected_elimations * 1000.0) as i64;
+            if let Some(expected_eliminations) = self.first_expected_eliminations_per_word.get(word)
+            {
+                return (expected_eliminations * 1000.0) as i64;
             }
         }
-        let expected_elimations = self.compute_expected_eliminations(word);
-        (expected_elimations * 1000.0) as i64
+        let expected_eliminations = self.compute_expected_eliminations(word);
+        (expected_eliminations * 1000.0) as i64
     }
 }
