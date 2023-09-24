@@ -6,6 +6,27 @@ An automated solving library for the popular game: [Wordle](https://www.nytimes.
 
 See [the docs](https://docs.rs/rs-wordle-solver/).
 
+## Development
+
+To develop this library:
+
+1. Clone the repo with the `--recurse-submodules` option, e.g.:
+
+   ```shell
+   $ git clone --recurse-submodules git@github.com:MorganR/rs-wordle-solver.git
+   ```
+
+1. Install [rust](https://www.rust-lang.org/tools/install)
+1. Install [Buck2](https://buck2.build/docs/getting_started/)
+1. If you didn't use `--recurse-submodules` when cloning, then pull in the submodules:
+
+   ```shell
+   $ git submodule init
+   $ git submodule update
+   ```
+
+Now you're good to go! The library exists in /lib, and a CLI to try it out is in /bin.
+
 ## Releases
 
 - **0.2.0**
