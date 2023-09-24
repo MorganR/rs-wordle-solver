@@ -1,0 +1,20 @@
+rust_library(
+  name = "rs-wordle-solver",
+  visibility = ["PUBLIC"],
+  srcs = glob(["src/**/*.rs"]),
+  deps = [
+    "//third-party:rand",
+    "//third-party:rayon",
+  ],
+  crate = "rs_wordle_solver",
+  crate_root = "src/lib.rs",
+)
+
+rust_test(
+  name = "rs-wordle-solver_test",
+  srcs = glob(["tests/**/*.rs"]),
+  deps = [
+    ":rs-wordle-solver",
+    "//third-party:assert_matches",
+  ],
+)

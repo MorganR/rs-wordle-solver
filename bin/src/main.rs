@@ -13,7 +13,7 @@ const MIN_WORD_LIMIT_FOR_COMBO: usize = 256;
 
 /// Simple program to run a Wordle game in reverse, where the computer guesses the word.
 #[derive(Parser, Debug)]
-#[clap(author, version, about)]
+#[command(author = "Morgan Roff", version = "0.1.0", about = "A simple CLI to test performance of different wordle-solving algorithms.")]
 struct Args {
     /// Path to a file that contains a list of possible words, with one word on each line.
     #[clap(short = 'f', long, default_value = "../data/wordle-words.txt")]

@@ -1,0 +1,21 @@
+[workspace]
+
+[package]
+name = "rust-third-party"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Fake bin for Cargo
+[[bin]]
+name = "fake_bin"
+path = "fake_bin/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+assert_matches = "1.5.0"
+clap = { version = "4.4.4", features = ["derive"]}
+rand = "0.8.4"
+rayon = "1.7.0"
+

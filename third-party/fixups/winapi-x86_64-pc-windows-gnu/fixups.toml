@@ -1,0 +1,24 @@
+omit_targets = []
+extra_srcs = []
+omit_srcs = []
+rustc_flags = []
+cfgs = []
+features = []
+omit_features = []
+extra_deps = []
+omit_deps = []
+cargo_env = false
+
+[env]
+
+[extra_mapped_srcs]
+
+buildscript = []
+
+[platform_fixup.'cfg(all(target_os = "windows", target_env = "gnu"))']
+version = "=0.48.0"
+[[platform_fixup.'cfg(all(target_os = "windows", target_env = "gnu"))'.buildscript]]
+[platform_fixup.'cfg(all(target_os = "windows", target_env = "gnu"))'.buildscript.prebuilt_cxx_library]
+name = "libwindows"
+static_libs = ["lib/libwindows.0.48.0.a"]
+

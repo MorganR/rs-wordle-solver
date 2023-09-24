@@ -1,0 +1,20 @@
+omit_targets = []
+extra_srcs = []
+omit_srcs = []
+rustc_flags = []
+cfgs = []
+features = []
+omit_features = []
+extra_deps = []
+omit_deps = []
+cargo_env = false
+
+[env]
+
+buildscript = []
+
+[extra_mapped_srcs]
+
+[[platform_fixup.'cfg(target_os = "windows")'.buildscript]]
+[platform_fixup.'cfg(target_os = "windows")'.buildscript.rustc_flags]
+

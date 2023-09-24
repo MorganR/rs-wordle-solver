@@ -1,0 +1,18 @@
+omit_targets = []
+extra_srcs = []
+omit_srcs = []
+rustc_flags = []
+cfgs = ["has_std"]
+features = []
+omit_features = []
+extra_deps = []
+omit_deps = []
+cargo_env = false
+
+[env]
+
+buildscript = []
+
+[extra_mapped_srcs]
+
+[platform_fixup]
