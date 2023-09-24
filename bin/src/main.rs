@@ -16,15 +16,15 @@ const MIN_WORD_LIMIT_FOR_COMBO: usize = 256;
 #[clap(author, version, about)]
 struct Args {
     /// Path to a file that contains a list of possible words, with one word on each line.
-    #[clap(short = 'f', long)]
+    #[clap(short = 'f', long, default_value = "../data/wordle-words.txt")]
     words_file: String,
 
     /// Which guesser implementation to use.
-    #[clap(short = 'g', long)]
+    #[clap(short = 'g', long, default_value = "max_eliminations")]
     guesser_impl: GuesserImpl,
 
     /// Which list of words to guess from, "all", or "possible". Defaults to all.
-    #[clap(long)]
+    #[clap(long, default_value = "all")]
     guess_from: GuessFrom,
 
     /// If true, runs a benchmark to determine how many rounds are needed to guess every word in
