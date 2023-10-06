@@ -12,9 +12,50 @@ rust_library(
 
 rust_test(
   name = "rs-wordle-solver_test",
-  srcs = glob(["tests/**/*.rs"]),
+  srcs = glob(["src/**/*.rs"]),
+  deps = [
+    "//third-party:rand",
+    "//third-party:rayon",
+  ],
+  crate_root = "src/lib.rs",
+)
+
+rust_test(
+  name = "data_test",
+  srcs = ["tests/data_test.rs"],
   deps = [
     ":rs-wordle-solver",
     "//third-party:assert_matches",
   ],
+  crate_root = "tests/data_test.rs"
+)
+
+rust_test(
+  name = "engine_test",
+  srcs = ["tests/engine_test.rs"],
+  deps = [
+    ":rs-wordle-solver",
+    "//third-party:assert_matches",
+  ],
+  crate_root = "tests/engine_test.rs",
+)
+
+rust_test(
+  name = "results_test",
+  srcs = ["tests/results_test.rs"],
+  deps = [
+    ":rs-wordle-solver",
+    "//third-party:assert_matches",
+  ],
+  crate_root = "tests/results_test.rs",
+)
+
+rust_test(
+  name = "scorers_test",
+  srcs = ["tests/scorers_test.rs"],
+  deps = [
+    ":rs-wordle-solver",
+    "//third-party:assert_matches",
+  ],
+  crate_root = "tests/scorers_test.rs",
 )
