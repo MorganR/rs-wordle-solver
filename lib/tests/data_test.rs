@@ -22,7 +22,7 @@ macro_rules! assert_arc_eq {
 
 #[test]
 fn word_bank_from_reader_succeeds() -> Result<(), WordleError> {
-    let mut cursor = Cursor::new(String::from("\n\nworda\nwordb\n"));
+    let mut cursor = Cursor::new(String::from("\n\nworda\n wordb\n"));
 
     let word_bank = WordBank::from_reader(&mut cursor)?;
 
@@ -58,7 +58,7 @@ fn word_bank_from_string_iterator_succeeds() -> Result<(), WordleError> {
 
 #[test]
 fn word_bank_from_reader_mismatched_word_length_fails() {
-    let mut cursor = Cursor::new(String::from("\nlongword\nshort\n"));
+    let mut cursor = Cursor::new(String::from("\nlongword\n   short\n"));
 
     assert_matches!(
         WordBank::from_reader(&mut cursor),
@@ -79,4 +79,14 @@ fn compressed_guess_result_equality() -> Result<(), WordleError> {
     assert!(result_correct != result_not_present);
     assert!(result_not_here != result_not_present);
     Ok(())
+}
+
+#[test]
+fn compressed_guess_result_too_long() {
+    assert_matches!(
+        CompressedGuessResult::from_results(&[LetterResult::Correct; MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT]),
+        Ok(_));
+    assert_matches!(
+        CompressedGuessResult::from_results(&[LetterResult::Correct; MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT + 1]),
+        Err(WordleError::WordLength(MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT)));
 }

@@ -6,12 +6,12 @@ use std::fmt;
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub enum LetterResult {
     /// This letter goes exactly here in the objective word.
-    Correct,
+    Correct = 0b01,
     /// This letter is in the objective word, but not here.
-    PresentNotHere,
+    PresentNotHere = 0b10,
     /// This letter is not in the objective word, or is only in the word as many times as it was
     /// marked either `PresentNotHere` or `Correct`.
-    NotPresent,
+    NotPresent = 0b11,
 }
 
 /// Indicates that an error occurred while trying to guess the objective word.

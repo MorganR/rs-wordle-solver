@@ -75,6 +75,7 @@ pub mod scorers;
 /// Internals and other things that may be useful if you want to implement your own Wordle solving
 /// algorithms.
 pub mod details {
+    pub use crate::data::MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT;
     pub use crate::data::CompressedGuessResult;
     pub use crate::data::LocatedLetter;
     pub use crate::data::WordCounter;

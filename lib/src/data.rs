@@ -67,21 +67,13 @@ impl WordBank {
         let mut word_length = 0;
         let all_words = word_reader
             .lines()
-            .map(|maybe_word| {
-                maybe_word.map_err(WordleError::from).and_then(|word| {
-                    let this_word_length = word.len();
-                    if word_length == 0 && this_word_length != 0 {
-                        word_length = this_word_length;
-                    } else if word_length != this_word_length {
-                        return Err(WordleError::WordLength(word_length));
-                    }
-                    Ok(Arc::from(word.to_lowercase().as_str()))
+            .filter_map(|maybe_word| {
+                maybe_word.map_or_else(|err| Some(Err(WordleError::from(err))),
+                |word| {
+                    let normalized: Option<Result<Arc<str>, WordleError>>;
+                    (word_length, normalized) = WordBank::parse_word_to_arc(word_length, word.as_ref());
+                    normalized
                 })
-            })
-            .filter(|maybe_word| {
-                maybe_word
-                    .as_ref()
-                    .map_or(true, |word: &Arc<str>| word.len() > 0)
             })
             .collect::<Result<Vec<Arc<str>>, WordleError>>()?;
         Ok(WordBank {
@@ -116,22 +108,31 @@ impl WordBank {
             all_words: words
                 .into_iter()
                 .filter_map(|word| {
-                    let normalized: Arc<str> =
-                        Arc::from(word.as_ref().trim().to_lowercase().as_str());
-                    let this_word_length = normalized.len();
-                    if this_word_length == 0 {
-                        return None;
-                    }
-                    if word_length == 0 {
-                        word_length = this_word_length;
-                    } else if word_length != this_word_length {
-                        return Some(Err(WordleError::WordLength(word_length)));
-                    }
-                    Some(Ok(normalized))
+                    let normalized: Option<Result<Arc<str>, WordleError>>;
+                    (word_length, normalized) = WordBank::parse_word_to_arc(word_length, word.as_ref());
+                    normalized
                 })
                 .collect::<Result<Vec<Arc<str>>, WordleError>>()?,
             word_length,
         })
+    }
+
+    /// Cleans and parses the given word to an `Arc<str>`, while filtering out empty lines and
+    /// returning an error if the word's length differs from `word_length` (if non-zero).
+    /// 
+    /// Returns the new `word_length` to use (if `word_length` was zero before), and the parsed
+    /// word.
+    fn parse_word_to_arc(word_length: usize, word: &str) -> (usize, Option<Result<Arc<str>, WordleError>>) {
+        let normalized: Arc<str> =
+            Arc::from(word.trim().to_lowercase().as_str());
+        let this_word_length = normalized.len();
+        if this_word_length == 0 {
+            return (word_length, None);
+        }
+        if word_length != 0 && word_length != this_word_length {
+            return (word_length, Some(Err(WordleError::WordLength(word_length))));
+        }
+        (this_word_length, Some(Ok(normalized)))
     }
 
     /// Returns the number of possible words.
@@ -567,18 +568,20 @@ impl<'a> FromIterator<&'a Arc<str>> for WordTracker {
     }
 }
 
-/// A compressed form of LetterResults. Can only store vectors of up to 10 results.
+/// A compressed form of [LetterResult]s. Can only store vectors of up to 10 results.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct CompressedGuessResult {
     data: u32,
 }
 
-const MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT: usize = std::mem::size_of::<u32>() * 8 / 3;
+const NUM_BITS_PER_LETTER_RESULT: usize = 2;
+pub const MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT: usize = std::mem::size_of::<u32>() * 8 / NUM_BITS_PER_LETTER_RESULT;
 
 impl CompressedGuessResult {
     /// Creates a compressed form of the given letter results.
     ///
-    /// Returns a [`WordleError::WordLength`] error if `letter_results` has more than 10 values.
+    /// Returns a [`WordleError::WordLength`] error if `letter_results` has more than
+    /// [`MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT`] values.
     pub fn from_results(
         letter_results: &[LetterResult],
     ) -> std::result::Result<CompressedGuessResult, WordleError> {
@@ -590,14 +593,8 @@ impl CompressedGuessResult {
         let mut data = 0;
         let mut index = 0;
         for letter in letter_results {
-            data |= 1
-                << (index
-                    + match letter {
-                        LetterResult::Correct => 0,
-                        LetterResult::PresentNotHere => 1,
-                        LetterResult::NotPresent => 2,
-                    });
-            index += 3;
+            data |= (*letter as u32) << index;
+            index += NUM_BITS_PER_LETTER_RESULT;
         }
         Ok(Self { data })
     }
