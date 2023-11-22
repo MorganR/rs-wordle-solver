@@ -8,6 +8,12 @@ See [the docs](https://docs.rs/rs-wordle-solver/).
 
 ## Releases
 
+- **0.3.0**
+
+  - Add `MaxEliminationsScorer::from_first_guess_eliminations` and `::first_guess_eliminations`.
+    This is especially useful for efficiently (de)serializing the important bits of this struct.
+  - Align `WordBank::from_reader` and `::from_iterator` implementations.
+
 - **0.2.0**
 
   - Enable parallelization with [`Rayon`](https://docs.rs/rayon/1.7.0/rayon/index.html)
