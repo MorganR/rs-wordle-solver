@@ -22,7 +22,7 @@ use std::sync::Arc;
 /// file. This table shows the average number of guesses needed to find the objective word. There
 /// are more details in the docs for each scorer.
 ///
-/// | Scorer                             |[`GuessFrom::PossibleWords`](crate::engine::GuessFrom::PossibleWords)|[`GuessFrom::AllUnguessedWords`](crate::engine::GuessFrom::PossibleWords)|
+/// | Scorer                             |[`GuessFrom::PossibleWords`]|[`GuessFrom::AllUnguessedWords`]|
 /// |------------------------------------|----------------------------|--------------------------------|
 /// |[`MaxEliminationsScorer`]           |               3.95 +/- 1.10|                   3.78 +/- 0.65|
 /// |[`MaxApproximateEliminationsScorer`]|               4.02 +/- 1.16|                   3.85 +/- 0.72|
@@ -457,6 +457,28 @@ impl MaxEliminationsScorer {
             first_expected_eliminations_per_word: expected_eliminations_per_word,
             is_first_round: true,
         })
+    }
+
+    /// Creates a [`MaxEliminationsScorer`] from a precomputed estimate of the expected number of
+    /// eliminations on the first guess.
+    pub fn from_first_guess_eliminations(
+        first_expected_eliminations_per_word: HashMap<Arc<str>, f64>,
+    ) -> Result<MaxEliminationsScorer, WordleError> {
+        Ok(MaxEliminationsScorer {
+            possible_words: first_expected_eliminations_per_word
+                .keys()
+                .map(Arc::clone)
+                .collect(),
+            first_expected_eliminations_per_word,
+            is_first_round: true,
+        })
+    }
+
+    /// Returns the precomputed estimate of the expected number of eliminations from guessing each
+    /// word on the first guess. Can be provided to [`Self::from_first_guess_eliminations()`] to
+    /// create a new instance.
+    pub fn first_guess_eliminations(&self) -> &HashMap<Arc<str>, f64> {
+        &self.first_expected_eliminations_per_word
     }
 
     fn compute_expected_eliminations(&self, word: &Arc<str>) -> f64 {
