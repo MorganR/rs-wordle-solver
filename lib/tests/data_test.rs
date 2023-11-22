@@ -84,9 +84,17 @@ fn compressed_guess_result_equality() -> Result<(), WordleError> {
 #[test]
 fn compressed_guess_result_too_long() {
     assert_matches!(
-        CompressedGuessResult::from_results(&[LetterResult::Correct; MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT]),
-        Ok(_));
+        CompressedGuessResult::from_results(
+            &[LetterResult::Correct; MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT]
+        ),
+        Ok(_)
+    );
     assert_matches!(
-        CompressedGuessResult::from_results(&[LetterResult::Correct; MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT + 1]),
-        Err(WordleError::WordLength(MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT)));
+        CompressedGuessResult::from_results(
+            &[LetterResult::Correct; MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT + 1]
+        ),
+        Err(WordleError::WordLength(
+            MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT
+        ))
+    );
 }

@@ -64,7 +64,9 @@ mod results;
 
 pub use data::WordBank;
 pub use engine::*;
-pub use results::*;
+pub use results::{
+    get_result_for_guess, GameData, GameResult, GuessResult, LetterResult, TurnData, WordleError,
+};
 
 /// Scorers for determining which word is the best guess.
 ///
@@ -75,10 +77,10 @@ pub mod scorers;
 /// Internals and other things that may be useful if you want to implement your own Wordle solving
 /// algorithms.
 pub mod details {
-    pub use crate::data::MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT;
-    pub use crate::data::CompressedGuessResult;
     pub use crate::data::LocatedLetter;
     pub use crate::data::WordCounter;
     pub use crate::data::WordTracker;
     pub use crate::restrictions::*;
+    pub use crate::results::CompressedGuessResult;
+    pub use crate::results::MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT;
 }

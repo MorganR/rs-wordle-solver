@@ -2,6 +2,7 @@ use crate::data::*;
 use crate::restrictions::LetterRestriction;
 use crate::restrictions::WordRestrictions;
 use crate::results::get_result_for_guess;
+use crate::results::CompressedGuessResult;
 use crate::results::WordleError;
 use crate::GuessFrom;
 use rayon::prelude::*;

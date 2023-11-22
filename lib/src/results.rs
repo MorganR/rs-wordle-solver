@@ -1,6 +1,39 @@
 use std::error::Error;
 use std::fmt;
 
+/// A compressed form of [LetterResult]s. Can only store vectors of up to 10 results.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct CompressedGuessResult {
+    data: u32,
+}
+
+const NUM_BITS_PER_LETTER_RESULT: usize = 2;
+pub const MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT: usize =
+    std::mem::size_of::<u32>() * 8 / NUM_BITS_PER_LETTER_RESULT;
+
+impl CompressedGuessResult {
+    /// Creates a compressed form of the given letter results.
+    ///
+    /// Returns a [`WordleError::WordLength`] error if `letter_results` has more than
+    /// [`MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT`] values.
+    pub fn from_results(
+        letter_results: &[LetterResult],
+    ) -> std::result::Result<CompressedGuessResult, WordleError> {
+        if letter_results.len() > MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT {
+            return Err(WordleError::WordLength(
+                MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT,
+            ));
+        }
+        let mut data = 0;
+        let mut index = 0;
+        for letter in letter_results {
+            data |= (*letter as u32) << index;
+            index += NUM_BITS_PER_LETTER_RESULT;
+        }
+        Ok(Self { data })
+    }
+}
+
 /// The result of a given letter at a specific location. There is some complexity here when a
 /// letter appears in a word more than once. See [`GuessResult`] for more details.
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]

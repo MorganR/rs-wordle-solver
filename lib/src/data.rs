@@ -68,12 +68,15 @@ impl WordBank {
         let all_words = word_reader
             .lines()
             .filter_map(|maybe_word| {
-                maybe_word.map_or_else(|err| Some(Err(WordleError::from(err))),
-                |word| {
-                    let normalized: Option<Result<Arc<str>, WordleError>>;
-                    (word_length, normalized) = WordBank::parse_word_to_arc(word_length, word.as_ref());
-                    normalized
-                })
+                maybe_word.map_or_else(
+                    |err| Some(Err(WordleError::from(err))),
+                    |word| {
+                        let normalized: Option<Result<Arc<str>, WordleError>>;
+                        (word_length, normalized) =
+                            WordBank::parse_word_to_arc(word_length, word.as_ref());
+                        normalized
+                    },
+                )
             })
             .collect::<Result<Vec<Arc<str>>, WordleError>>()?;
         Ok(WordBank {
@@ -109,7 +112,8 @@ impl WordBank {
                 .into_iter()
                 .filter_map(|word| {
                     let normalized: Option<Result<Arc<str>, WordleError>>;
-                    (word_length, normalized) = WordBank::parse_word_to_arc(word_length, word.as_ref());
+                    (word_length, normalized) =
+                        WordBank::parse_word_to_arc(word_length, word.as_ref());
                     normalized
                 })
                 .collect::<Result<Vec<Arc<str>>, WordleError>>()?,
@@ -119,12 +123,14 @@ impl WordBank {
 
     /// Cleans and parses the given word to an `Arc<str>`, while filtering out empty lines and
     /// returning an error if the word's length differs from `word_length` (if non-zero).
-    /// 
+    ///
     /// Returns the new `word_length` to use (if `word_length` was zero before), and the parsed
     /// word.
-    fn parse_word_to_arc(word_length: usize, word: &str) -> (usize, Option<Result<Arc<str>, WordleError>>) {
-        let normalized: Arc<str> =
-            Arc::from(word.trim().to_lowercase().as_str());
+    fn parse_word_to_arc(
+        word_length: usize,
+        word: &str,
+    ) -> (usize, Option<Result<Arc<str>, WordleError>>) {
+        let normalized: Arc<str> = Arc::from(word.trim().to_lowercase().as_str());
         let this_word_length = normalized.len();
         if this_word_length == 0 {
             return (word_length, None);
@@ -565,37 +571,5 @@ impl<'a> FromIterator<&'a Arc<str>> for WordTracker {
         T: IntoIterator<Item = &'a Arc<str>>,
     {
         WordTracker::new(iter.into_iter().map(Arc::clone).collect())
-    }
-}
-
-/// A compressed form of [LetterResult]s. Can only store vectors of up to 10 results.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub struct CompressedGuessResult {
-    data: u32,
-}
-
-const NUM_BITS_PER_LETTER_RESULT: usize = 2;
-pub const MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT: usize = std::mem::size_of::<u32>() * 8 / NUM_BITS_PER_LETTER_RESULT;
-
-impl CompressedGuessResult {
-    /// Creates a compressed form of the given letter results.
-    ///
-    /// Returns a [`WordleError::WordLength`] error if `letter_results` has more than
-    /// [`MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT`] values.
-    pub fn from_results(
-        letter_results: &[LetterResult],
-    ) -> std::result::Result<CompressedGuessResult, WordleError> {
-        if letter_results.len() > MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT {
-            return Err(WordleError::WordLength(
-                MAX_LETTERS_IN_COMPRESSED_GUESS_RESULT,
-            ));
-        }
-        let mut data = 0;
-        let mut index = 0;
-        for letter in letter_results {
-            data |= (*letter as u32) << index;
-            index += NUM_BITS_PER_LETTER_RESULT;
-        }
-        Ok(Self { data })
     }
 }
