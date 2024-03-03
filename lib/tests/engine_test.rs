@@ -164,7 +164,6 @@ fn max_score_guesser_invalid_update_fails() -> Result<(), WordleError> {
     let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
     let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
-
     guesser.update(&GuessResult {
         guess: "abc",
         results: vec![
@@ -183,7 +182,8 @@ fn max_score_guesser_invalid_update_fails() -> Result<(), WordleError> {
                 LetterResult::PresentNotHere,
             ],
         }),
-        Err(WordleError::InvalidResults));
+        Err(WordleError::InvalidResults)
+    );
     Ok(())
 }
 

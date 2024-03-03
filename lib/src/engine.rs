@@ -169,8 +169,7 @@ where
     T: WordScorer + Clone + Sync,
 {
     guess_mode: GuessFrom,
-    all_unguessed_words: Vec<Arc<str>>,
-    possible_words: Vec<Arc<str>>,
+    grouped_words: GroupedWords,
     restrictions: WordRestrictions,
     scorer: T,
 }
@@ -204,8 +203,7 @@ where
     pub fn new(guess_mode: GuessFrom, word_bank: &WordBank, scorer: T) -> MaxScoreGuesser<T> {
         MaxScoreGuesser {
             guess_mode,
-            all_unguessed_words: word_bank.to_vec(),
-            possible_words: word_bank.to_vec(),
+            grouped_words: GroupedWords::new(word_bank),
             restrictions: WordRestrictions::new(word_bank.word_length() as u8),
             scorer,
         }
@@ -218,9 +216,11 @@ where
     pub fn select_top_n_guesses(&self, n: usize) -> Vec<ScoredGuess> {
         let words_to_score = match self.guess_mode {
             // Only score possible words if we're down to the last two guesses.
-            _ if self.possible_words.len() <= 2 => &self.possible_words,
-            GuessFrom::AllUnguessedWords => &self.all_unguessed_words,
-            GuessFrom::PossibleWords => &self.possible_words,
+            _ if self.grouped_words.num_possible_words() <= 2 => {
+                self.grouped_words.possible_words()
+            }
+            GuessFrom::AllUnguessedWords => self.grouped_words.unguessed_words(),
+            GuessFrom::PossibleWords => self.grouped_words.possible_words(),
         };
 
         let scored_words = if words_to_score.len() > MIN_PARALLELIZATION_LIMIT {
@@ -254,26 +254,26 @@ where
     T: WordScorer + Clone + Sync,
 {
     fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError> {
-        if let Some(position) = self
-            .all_unguessed_words
-            .iter()
-            .position(|word| word.as_ref() == result.guess)
-        {
-            self.all_unguessed_words.swap_remove(position);
-        }
+        self.grouped_words.remove_guess_if_present(result.guess);
         self.restrictions.update(result)?;
-        self.possible_words
-            .retain(|word| self.restrictions.is_satisfied_by(word.as_ref()));
-        self.scorer
-            .update(result.guess, &self.restrictions, &self.possible_words)?;
+        self.grouped_words
+            .filter_possible_words(|word| self.restrictions.is_satisfied_by(word));
+        self.scorer.update(
+            result.guess,
+            &self.restrictions,
+            &self.grouped_words.possible_words(),
+        )?;
         Ok(())
     }
 
     fn select_next_guess(&mut self) -> Option<Arc<str>> {
-        if self.guess_mode == GuessFrom::AllUnguessedWords && self.possible_words.len() > 2 {
+        if self.guess_mode == GuessFrom::AllUnguessedWords
+            && self.grouped_words.num_possible_words() > 2
+        {
             let empty_word = Arc::from("");
             let (best_score, worst_score, best_word) = self
-                .all_unguessed_words
+                .grouped_words
+                .unguessed_words()
                 .par_iter()
                 .map(|word| {
                     let score = self.scorer.score_word(word);
@@ -293,26 +293,28 @@ where
             if !best_word.is_empty() && best_score != worst_score {
                 return Some(Arc::clone(best_word));
             } else {
-                return self.possible_words.get(0).map(Arc::clone);
+                return self.grouped_words.possible_words().get(0).map(Arc::clone);
             }
         }
 
-        if self.possible_words.len() > MIN_PARALLELIZATION_LIMIT {
+        if self.grouped_words.num_possible_words() > MIN_PARALLELIZATION_LIMIT {
             return self
-                .possible_words
+                .grouped_words
+                .possible_words()
                 .par_iter()
                 .max_by_key(|word| self.scorer.score_word(word))
                 .map(Arc::clone);
         }
 
         return self
-            .possible_words
+            .grouped_words
+            .possible_words()
             .iter()
             .max_by_key(|word| self.scorer.score_word(word))
             .map(Arc::clone);
     }
 
     fn possible_words(&self) -> &[Arc<str>] {
-        &self.possible_words
+        &self.grouped_words.possible_words()
     }
 }

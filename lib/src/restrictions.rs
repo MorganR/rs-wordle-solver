@@ -394,7 +394,8 @@ impl WordRestrictions {
             .or_insert_with(|| PresentLetter::new(self.word_length));
         presence.set_must_be_at(location)?;
 
-        let (num_times_present, num_times_not_present) = WordRestrictions::count_num_times_in_guess(letter, result);
+        let (num_times_present, num_times_not_present) =
+            WordRestrictions::count_num_times_in_guess(letter, result);
         // If the letter is present, but at least one result was `NotPresent`, then it means it's
         // only in the word as many times as it was given a `Correct` or `PresentNotHere` hint.
         if num_times_not_present > 0 {
@@ -426,7 +427,8 @@ impl WordRestrictions {
             .entry(letter)
             .or_insert_with(|| PresentLetter::new(self.word_length));
         presence.set_must_not_be_at(location)?;
-        let (num_times_present, num_times_not_present) = WordRestrictions::count_num_times_in_guess(letter, result);
+        let (num_times_present, num_times_not_present) =
+            WordRestrictions::count_num_times_in_guess(letter, result);
         // If the letter is present, but at least one result was `NotPresent`, then it means it's
         // only in the word as many times as it was given a `Correct` or `PresentNotHere` hint.
         if num_times_not_present > 0 {
@@ -468,7 +470,7 @@ impl WordRestrictions {
             match guess_result.results[index] {
                 LetterResult::NotPresent => {
                     num_times_not_present += 1;
-                },
+                }
                 _ => {
                     num_times_present += 1;
                 }
@@ -1002,10 +1004,11 @@ mod tests {
                 LetterResult::PresentNotHere,
                 LetterResult::Correct,
                 LetterResult::NotPresent,
-            ]
+            ],
         })?;
 
-        assert!(matches!(restrictions.clone().update(&GuessResult {
+        assert!(matches!(
+            restrictions.clone().update(&GuessResult {
                 guess: "aaaa",
                 results: vec![
                     LetterResult::NotPresent,
@@ -1014,8 +1017,10 @@ mod tests {
                     LetterResult::Correct,
                 ]
             }),
-            Err(WordleError::InvalidResults)));
-        assert!(matches!(restrictions.clone().update(&GuessResult {
+            Err(WordleError::InvalidResults)
+        ));
+        assert!(matches!(
+            restrictions.clone().update(&GuessResult {
                 guess: "aaaa",
                 results: vec![
                     LetterResult::NotPresent,
@@ -1024,7 +1029,8 @@ mod tests {
                     LetterResult::NotPresent,
                 ]
             }),
-            Err(WordleError::InvalidResults)));
+            Err(WordleError::InvalidResults)
+        ));
         Ok(())
     }
 }

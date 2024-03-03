@@ -573,3 +573,75 @@ impl<'a> FromIterator<&'a Arc<str>> for WordTracker {
         WordTracker::new(iter.into_iter().map(Arc::clone).collect())
     }
 }
+
+/// Efficiently tracks all possible words and all unguessed words as zero-cost slices within a
+/// single array of all words. This assumes that only unguessed words are possible.
+#[derive(Clone)]
+pub struct GroupedWords {
+    pub all_words: Vec<Arc<str>>,
+    _num_possible_words: usize,
+    _num_unguessed_words: usize,
+}
+
+impl GroupedWords {
+    /// Constructs a new GroupedWords instance. Initially all words are considered possible and
+    /// unguessed.
+    pub fn new(words: &WordBank) -> Self {
+        Self {
+            all_words: words.to_vec(),
+            _num_possible_words: words.len(),
+            _num_unguessed_words: words.len(),
+        }
+    }
+
+    pub fn num_possible_words(&self) -> usize {
+        self._num_possible_words
+    }
+
+    pub fn num_unguessed_words(&self) -> usize {
+        self._num_unguessed_words
+    }
+
+    /// The slice of all unguessed words. Guaranteed to start with possible words.
+    pub fn unguessed_words(&self) -> &[Arc<str>] {
+        &self.all_words[0..self._num_unguessed_words]
+    }
+
+    /// The slice of all possible words.
+    pub fn possible_words(&self) -> &[Arc<str>] {
+        &self.all_words[0..self._num_possible_words]
+    }
+
+    /// Removes this word from the set of unguessed words, if it's present in the word list.
+    /// This also removes the word from the list of possible words.
+    pub fn remove_guess_if_present(&mut self, guess: &str) {
+        // TODO: Support both by using the start of the array for possible words that have been
+        // guessed.
+        if let Some(position) = self
+            .unguessed_words()
+            .iter()
+            .position(|word| word.as_ref() == guess)
+        {
+            self.all_words.swap(position, self._num_unguessed_words - 1);
+            self._num_unguessed_words -= 1;
+        }
+    }
+
+    /// Filters out possible words for which the filter returns false.
+    pub fn filter_possible_words<F>(&mut self, filter: F)
+    where
+        F: Fn(&str) -> bool,
+    {
+        let mut i = (self._num_possible_words - 1) as isize;
+        while i >= 0 {
+            let iu = i as usize;
+            let word = &self.all_words[iu];
+            i -= 1;
+            if filter(word.as_ref()) {
+                continue;
+            }
+            self.all_words.swap(iu, self._num_possible_words - 1);
+            self._num_possible_words -= 1;
+        }
+    }
+}
