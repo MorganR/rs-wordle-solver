@@ -62,6 +62,12 @@ impl PresentLetter {
         self.min_count
     }
 
+    /// Returns the number of `Here` or `Unknown` letters.
+    #[inline(always)]
+    pub fn num_here_or_unknown(&self) -> u8 {
+        self.located_state.len() as u8 - self.num_not_here
+    }
+
     /// Sets that this letter must be at the given index.
     ///
     /// If the required count for this letter is known, then this may fill any remaining `Unknown`
@@ -84,11 +90,9 @@ impl PresentLetter {
         if let Some(count) = self.maybe_required_count {
             if self.num_here == count {
                 // If the count has been met, then this letter doesn't appear anywhere else.
-                self.set_unknowns_to(LocatedLetterState::NotHere);
-            } else if (self.located_state.len() as u8 - self.num_not_here) == count {
-                // If the letter must be in all possible remaining spaces, set them to here.
-                self.set_unknowns_to(LocatedLetterState::Here)
+                self.set_unknowns_to_not_here();
             }
+            // No need to also check the num_here_or_unknown, because this action doesn't change it.
         } else {
             // Set the max count if all states are known to prevent errors.
             // Note that there is no need to update any unknowns in this case, as there are no
@@ -114,12 +118,12 @@ impl PresentLetter {
         }
         self.located_state[index] = LocatedLetterState::NotHere;
         self.num_not_here += 1;
-        let max_possible_here = self.located_state.len() as u8 - self.num_not_here;
-        if max_possible_here == self.min_count {
+        let num_here_or_unknown = self.num_here_or_unknown();
+        if num_here_or_unknown == self.min_count {
             // If the letter must be in all possible remaining spaces, set them to `Here`.
             self.maybe_required_count = Some(self.min_count);
             if self.num_here < self.min_count {
-                self.set_unknowns_to(LocatedLetterState::Here);
+                self.set_unknowns_to_here();
             }
         }
         Ok(())
@@ -141,15 +145,15 @@ impl PresentLetter {
             return Err(WordleError::InvalidResults);
         }
         self.min_count = count;
-        let max_possible_num_here = self.located_state.len() as u8 - self.num_not_here;
-        if max_possible_num_here < count {
+        let num_here_or_unknown = self.num_here_or_unknown();
+        if num_here_or_unknown < count {
             return Err(WordleError::InvalidResults);
         }
         self.maybe_required_count = Some(count);
         if self.num_here == count {
-            self.set_unknowns_to(LocatedLetterState::NotHere);
-        } else if max_possible_num_here == count {
-            self.set_unknowns_to(LocatedLetterState::Here);
+            self.set_unknowns_to_not_here();
+        } else if num_here_or_unknown == count {
+            self.set_unknowns_to_here();
         }
         Ok(())
     }
@@ -170,7 +174,7 @@ impl PresentLetter {
             return Err(WordleError::InvalidResults);
         } else if max_possible_num_here == count && self.num_here < count {
             // If all possible unknowns must be here, set them.
-            self.set_unknowns_to(LocatedLetterState::Here);
+            self.set_unknowns_to_here();
             self.maybe_required_count = Some(count);
         }
         Ok(())
@@ -199,15 +203,20 @@ impl PresentLetter {
         Ok(())
     }
 
-    fn set_unknowns_to(&mut self, new_state: LocatedLetterState) {
-        let mut count_to_update = &mut self.num_here;
-        if new_state == LocatedLetterState::NotHere {
-            count_to_update = &mut self.num_not_here;
-        }
+    fn set_unknowns_to_here(&mut self) {
         for state in &mut self.located_state {
             if *state == LocatedLetterState::Unknown {
-                *state = new_state;
-                *count_to_update += 1;
+                *state = LocatedLetterState::Here;
+                self.num_here += 1;
+            }
+        }
+    }
+
+    fn set_unknowns_to_not_here(&mut self) {
+        for state in &mut self.located_state {
+            if *state == LocatedLetterState::Unknown {
+                *state = LocatedLetterState::NotHere;
+                self.num_here += 1;
             }
         }
     }
@@ -421,11 +430,10 @@ impl WordRestrictions {
         // If the letter is present, but at least one result was `NotPresent`, then it means it's
         // only in the word as many times as it was given a `Correct` or `PresentNotHere` hint.
         if num_times_not_present > 0 {
-            presence.set_required_count(num_times_present)?;
+            presence.set_required_count(num_times_present)
         } else {
-            presence.possibly_bump_min_count(num_times_present)?;
+            presence.possibly_bump_min_count(num_times_present)
         }
-        Ok(())
     }
 
     fn set_letter_not_present(
@@ -441,8 +449,10 @@ impl WordRestrictions {
                 return Err(WordleError::InvalidResults);
             }
             let (num_times_present, _) = WordRestrictions::count_num_times_in_guess(letter, result);
-            return presence.set_required_count(num_times_present);
-        } else if num_times_present == 0 {
+            presence.set_required_count(num_times_present)?;
+            return presence.set_must_not_be_at(location);
+        }
+        if num_times_present == 0 {
             self.not_present_letters.insert(letter);
         }
         Ok(())
