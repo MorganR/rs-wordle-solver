@@ -376,19 +376,19 @@ impl WordRestrictions {
         location: usize,
         result: &GuessResult,
     ) -> Result<(), WordleError> {
+        if self.not_present_letters.contains(&letter) {
+            return Err(WordleError::InvalidResults);
+        }
         let presence = self
             .present_letters
             .entry(letter)
             .or_insert_with(|| PresentLetter::new(self.word_length));
         presence.set_must_be_at(location)?;
-        let num_times_present = WordRestrictions::count_num_times_in_guess(letter, result);
-        // Remove from the not present letters if it was present. This could happen if the guess
-        // included the letter in two places, but the correct word only included it in the latter
-        // place.
-        if self.not_present_letters.remove(&letter) {
-            // If the letter is present, but this result was `NotPresent`, then it means it's
-            // only in the word as many times as it was given a `Correct` or  `PresentNotHere`
-            // hint.
+
+        let (num_times_present, num_times_not_present) = WordRestrictions::count_num_times_in_guess(letter, result);
+        // If the letter is present, but at least one result was `NotPresent`, then it means it's
+        // only in the word as many times as it was given a `Correct` or `PresentNotHere` hint.
+        if num_times_not_present > 0 {
             presence.set_required_count(num_times_present)?;
         } else {
             presence.possibly_bump_min_count(num_times_present)?;
@@ -409,19 +409,18 @@ impl WordRestrictions {
         location: usize,
         result: &GuessResult,
     ) -> Result<(), WordleError> {
+        if self.not_present_letters.contains(&letter) {
+            return Err(WordleError::InvalidResults);
+        }
         let presence = self
             .present_letters
             .entry(letter)
             .or_insert_with(|| PresentLetter::new(self.word_length));
         presence.set_must_not_be_at(location)?;
-        let num_times_present = WordRestrictions::count_num_times_in_guess(letter, result);
-        // Remove from the not present letters if it was present. This could happen if the guess
-        // included the letter in two places, but the correct word only included it in the latter
-        // place.
-        if self.not_present_letters.remove(&letter) {
-            // If the letter is present, but this result was `NotPresent`, then it means it's
-            // only in the word as many times as it was given a `Correct` or  `PresentNotHere`
-            // hint.
+        let (num_times_present, num_times_not_present) = WordRestrictions::count_num_times_in_guess(letter, result);
+        // If the letter is present, but at least one result was `NotPresent`, then it means it's
+        // only in the word as many times as it was given a `Correct` or `PresentNotHere` hint.
+        if num_times_not_present > 0 {
             presence.set_required_count(num_times_present)?;
         } else {
             presence.possibly_bump_min_count(num_times_present)?;
@@ -435,27 +434,37 @@ impl WordRestrictions {
         location: usize,
         result: &GuessResult,
     ) -> Result<(), WordleError> {
+        let (num_times_present, _) = WordRestrictions::count_num_times_in_guess(letter, result);
         if let Entry::Occupied(mut presence_entry) = self.present_letters.entry(letter) {
             let presence = presence_entry.get_mut();
             if presence.state(location) == LocatedLetterState::Here {
                 return Err(WordleError::InvalidResults);
             }
-            let num_times_present = WordRestrictions::count_num_times_in_guess(letter, result);
+            let (num_times_present, _) = WordRestrictions::count_num_times_in_guess(letter, result);
             return presence.set_required_count(num_times_present);
+        } else if num_times_present == 0 {
+            self.not_present_letters.insert(letter);
         }
-        self.not_present_letters.insert(letter);
         Ok(())
     }
 
-    fn count_num_times_in_guess(letter: char, guess_result: &GuessResult) -> u8 {
-        guess_result
-            .guess
-            .char_indices()
-            .filter(|(index, other_letter)| {
-                *other_letter == letter
-                    && *guess_result.results.get(*index).unwrap() != LetterResult::NotPresent
-            })
-            .count() as u8
+    fn count_num_times_in_guess(letter: char, guess_result: &GuessResult) -> (u8, u8) {
+        let mut num_times_present = 0u32;
+        let mut num_times_not_present = 0u32;
+        for (index, other_letter) in guess_result.guess.char_indices() {
+            if other_letter != letter {
+                continue;
+            }
+            match guess_result.results[index] {
+                LetterResult::NotPresent => {
+                    num_times_not_present += 1;
+                },
+                _ => {
+                    num_times_present += 1;
+                }
+            }
+        }
+        (num_times_present as u8, num_times_not_present as u8)
     }
 }
 
@@ -970,6 +979,42 @@ mod tests {
             restrictions.merge(&other_restrictions),
             Err(WordleError::InvalidResults)
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn word_restrictions_update_change_num_required_fails() -> Result<(), WordleError> {
+        let mut restrictions = WordRestrictions::new(4);
+        restrictions.update(&GuessResult {
+            guess: "aaaa",
+            results: vec![
+                LetterResult::NotPresent,
+                LetterResult::PresentNotHere,
+                LetterResult::Correct,
+                LetterResult::NotPresent,
+            ]
+        })?;
+
+        assert!(matches!(restrictions.clone().update(&GuessResult {
+                guess: "aaaa",
+                results: vec![
+                    LetterResult::NotPresent,
+                    LetterResult::PresentNotHere,
+                    LetterResult::Correct,
+                    LetterResult::Correct,
+                ]
+            }),
+            Err(WordleError::InvalidResults)));
+        assert!(matches!(restrictions.clone().update(&GuessResult {
+                guess: "aaaa",
+                results: vec![
+                    LetterResult::NotPresent,
+                    LetterResult::PresentNotHere,
+                    LetterResult::NotPresent,
+                    LetterResult::NotPresent,
+                ]
+            }),
+            Err(WordleError::InvalidResults)));
         Ok(())
     }
 }

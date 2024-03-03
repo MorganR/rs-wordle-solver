@@ -159,6 +159,35 @@ fn max_score_guesser_select_top_n_guesses() -> Result<(), WordleError> {
 }
 
 #[test]
+fn max_score_guesser_invalid_update_fails() -> Result<(), WordleError> {
+    let bank = WordBank::from_iterator(vec!["abc", "bcd", "cde"])?;
+    let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
+
+
+    guesser.update(&GuessResult {
+        guess: "abc",
+        results: vec![
+            LetterResult::NotPresent,
+            LetterResult::NotPresent,
+            LetterResult::NotPresent,
+        ],
+    })?;
+    assert_matches!(
+        guesser.update(&GuessResult {
+            guess: "bcd",
+            results: vec![
+                LetterResult::NotPresent,
+                // "c" can't be present, because we just said it's not present.
+                LetterResult::PresentNotHere,
+                LetterResult::PresentNotHere,
+            ],
+        }),
+        Err(WordleError::InvalidResults));
+    Ok(())
+}
+
+#[test]
 fn play_game_with_unknown_word_random() -> Result<(), WordleError> {
     let bank = WordBank::from_iterator(vec!["abcz", "weyz", "defy", "ghix"])?;
     let guesser = RandomGuesser::new(&bank);
