@@ -228,14 +228,14 @@ where
                 .par_iter()
                 .map(|word| (word, self.scorer.score_word(word)))
                 .collect();
-            scored_words.par_sort_unstable_by_key(|(_, score)| -score);
+            scored_words.par_sort_by_key(|(_, score)| -score);
             scored_words
         } else {
             let mut scored_words: Vec<(&Arc<str>, i64)> = words_to_score
                 .iter()
                 .map(|word| (word, self.scorer.score_word(word)))
                 .collect();
-            scored_words.sort_unstable_by_key(|(_, score)| -score);
+            scored_words.sort_by_key(|(_, score)| -score);
             scored_words
         };
         return scored_words
@@ -270,30 +270,28 @@ where
         if self.guess_mode == GuessFrom::AllUnguessedWords
             && self.grouped_words.num_possible_words() > 2
         {
-            let empty_word = Arc::from("");
-            let (best_score, worst_score, best_word) = self
-                .grouped_words
-                .unguessed_words()
+            let unguessed_words = self.grouped_words.unguessed_words();
+            let (_, best_index) = unguessed_words
                 .par_iter()
-                .map(|word| {
-                    let score = self.scorer.score_word(word);
-                    // Return score twice so we can accumulate everything via a single `reduce` call.
-                    (score, score, word)
-                })
+                .enumerate()
+                .map(|(i, word)| (self.scorer.score_word(word), i))
                 .reduce(
-                    || (i64::MIN, i64::MAX, &empty_word),
-                    |(max_score, min_score, best_word), (score, _, word)| {
-                        if score > max_score {
-                            (score, std::cmp::min(min_score, score), word)
-                        } else {
-                            (max_score, std::cmp::min(min_score, score), best_word)
+                    || (i64::MIN, usize::MAX),
+                    |(best_score, best_index), (score, index)| {
+                        if score > best_score {
+                            return (score, index);
                         }
+                        // Use the lower index, because it is more likely to be a possible word.
+                        if score == best_score && index < best_index {
+                            return (score, index);
+                        }
+                        (best_score, best_index)
                     },
                 );
-            if !best_word.is_empty() && best_score != worst_score {
-                return Some(Arc::clone(best_word));
+            if best_index > self.grouped_words.num_unguessed_words() {
+                return None;
             } else {
-                return self.grouped_words.possible_words().get(0).map(Arc::clone);
+                return Some(Arc::clone(&unguessed_words[best_index]));
             }
         }
 
