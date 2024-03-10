@@ -12,7 +12,7 @@ const MIN_PARALLELIZATION_LIMIT: usize = 1000;
 /// Guesses words in order to solve a single Wordle.
 pub trait Guesser {
     /// Updates this guesser with information about a word.
-    fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError>;
+    fn update(&mut self, result: &GuessResult) -> Result<(), WordleError>;
 
     /// Selects a new guess for the Wordle.
     ///
@@ -122,7 +122,7 @@ impl RandomGuesser {
 }
 
 impl Guesser for RandomGuesser {
-    fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError> {
+    fn update(&mut self, result: &GuessResult) -> Result<(), WordleError> {
         self.restrictions.update(result)?;
         self.possible_words
             .retain(|word| self.restrictions.is_satisfied_by(word));
@@ -238,14 +238,14 @@ where
             scored_words.sort_by_key(|(_, score)| -score);
             scored_words
         };
-        return scored_words
+        scored_words
             .into_iter()
             .take(n)
             .map(|(word, score)| ScoredGuess {
                 guess: Arc::clone(word),
                 score,
             })
-            .collect();
+            .collect()
     }
 }
 
@@ -253,7 +253,7 @@ impl<T> Guesser for MaxScoreGuesser<T>
 where
     T: WordScorer + Clone + Sync,
 {
-    fn update<'a>(&mut self, result: &'a GuessResult) -> Result<(), WordleError> {
+    fn update(&mut self, result: &GuessResult) -> Result<(), WordleError> {
         self.grouped_words.remove_guess_if_present(result.guess);
         self.restrictions.update(result)?;
         self.grouped_words
@@ -261,7 +261,7 @@ where
         self.scorer.update(
             result.guess,
             &self.restrictions,
-            &self.grouped_words.possible_words(),
+            self.grouped_words.possible_words(),
         )?;
         Ok(())
     }
@@ -313,6 +313,6 @@ where
     }
 
     fn possible_words(&self) -> &[Arc<str>] {
-        &self.grouped_words.possible_words()
+        self.grouped_words.possible_words()
     }
 }
