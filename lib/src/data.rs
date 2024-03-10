@@ -252,7 +252,7 @@ impl WordCounter {
     }
 }
 
-impl<'a, S> FromIterator<S> for WordCounter
+impl<S> FromIterator<S> for WordCounter
 where
     S: AsRef<str>,
 {
@@ -344,12 +344,12 @@ impl<'w> WordTracker<'w> {
     pub fn new<'w_in: 'w>(all_words: &'w_in [Arc<str>]) -> WordTracker<'w> {
         let mut words_by_letter: HashMap<char, Vec<Arc<str>>> = HashMap::new();
         let mut words_by_located_letter: HashMap<LocatedLetter, Vec<Arc<str>>> = HashMap::new();
-        for word in all_words.into_iter() {
+        for word in all_words.iter() {
             let word_ref = word.as_ref();
             for (index, letter) in word_ref.char_indices() {
                 words_by_located_letter
                     .entry(LocatedLetter::new(letter, index as u8))
-                    .or_insert(Vec::new())
+                    .or_default()
                     .push(Arc::clone(word));
                 if index == 0
                     || word_ref
@@ -359,7 +359,7 @@ impl<'w> WordTracker<'w> {
                 {
                     words_by_letter
                         .entry(letter)
-                        .or_insert(Vec::new())
+                        .or_default()
                         .push(Arc::clone(word));
                 }
             }
@@ -385,7 +385,7 @@ impl<'w> WordTracker<'w> {
     /// ```
     #[inline]
     pub fn all_words(&self) -> &[Arc<str>] {
-        &self.all_words
+        self.all_words
     }
 
     /// Returns true iff any of the words in this tracker contain the given letter.
@@ -508,7 +508,7 @@ impl<'w> WordTracker<'w> {
     /// ```
     pub fn words_without_letter(&self, letter: char) -> impl Iterator<Item = &'w Arc<str>> {
         self.all_words
-            .into_iter()
+            .iter()
             .filter(move |word| !word.contains(letter))
     }
 }
