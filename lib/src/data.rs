@@ -518,8 +518,16 @@ impl<'w> WordTracker<'w> {
 #[derive(Clone)]
 pub struct GroupedWords {
     pub all_words: Vec<Arc<str>>,
+    // The `all_words` vector keeps words grouped according to whether they're still possible, and
+    // whether they have been guessed. It's grouped into four sections:
+    // Index: 0
+    // 1. Words that have been guessed, and are still possible. Then index:
+    _first_unguessed_possible_word: usize,
+    // 2. Words that have not been guessed, and are still possible. Then index:
     _num_possible_words: usize,
-    _num_unguessed_words: usize,
+    // 3. Words that have not been guessed, but are not possible. Then index:
+    _first_guessed_impossible_word: usize,
+    // 4. Words that have been guessed, and are not possible.
 }
 
 impl GroupedWords {
@@ -528,8 +536,9 @@ impl GroupedWords {
     pub fn new(words: &WordBank) -> Self {
         Self {
             all_words: words.to_vec(),
+            _first_unguessed_possible_word: 0,
             _num_possible_words: words.len(),
-            _num_unguessed_words: words.len(),
+            _first_guessed_impossible_word: words.len(),
         }
     }
 
@@ -538,12 +547,12 @@ impl GroupedWords {
     }
 
     pub fn num_unguessed_words(&self) -> usize {
-        self._num_unguessed_words
+        self._first_guessed_impossible_word - self._first_unguessed_possible_word
     }
 
     /// The slice of all unguessed words. Guaranteed to start with possible words.
     pub fn unguessed_words(&self) -> &[Arc<str>] {
-        &self.all_words[0..self._num_unguessed_words]
+        &self.all_words[self._first_unguessed_possible_word..self._first_guessed_impossible_word]
     }
 
     /// The slice of all possible words.
@@ -560,9 +569,19 @@ impl GroupedWords {
             .unguessed_words()
             .iter()
             .position(|word| word.as_ref() == guess)
+            .map(|unguessed_position| unguessed_position + self._first_unguessed_possible_word)
         {
-            self.all_words.swap(position, self._num_unguessed_words - 1);
-            self._num_unguessed_words -= 1;
+            // If it's a possible word, put it in section 1.
+            if position < self._num_possible_words {
+                self.all_words
+                    .swap(position, self._first_unguessed_possible_word);
+                self._first_unguessed_possible_word += 1;
+            } else {
+                // If it's an impossible word, put it in section 4.
+                self.all_words
+                    .swap(position, self._first_guessed_impossible_word - 1);
+                self._first_guessed_impossible_word -= 1;
+            }
         }
     }
 
@@ -571,16 +590,156 @@ impl GroupedWords {
     where
         F: Fn(&str) -> bool,
     {
-        let mut i = (self._num_possible_words - 1) as isize;
-        while i >= 0 {
-            let iu = i as usize;
-            let word = &self.all_words[iu];
-            i -= 1;
-            if filter(word.as_ref()) {
-                continue;
-            }
-            self.all_words.swap(iu, self._num_possible_words - 1);
-            self._num_possible_words -= 1;
+        if self._num_possible_words == 0 {
+            return;
         }
+
+        // Iterate backwards so that, in the common case, we swap the minimum numher of words.
+        let mut i = self._num_possible_words - 1;
+        loop {
+            let word = &self.all_words[i];
+
+            if !filter(word.as_ref()) {
+                // Move this word from section 2 (possible unguessed words) to section 3 (impossible
+                // unguessed words).
+                self._num_possible_words -= 1;
+                self.all_words.swap(i, self._num_possible_words);
+            }
+
+            if i == self._first_unguessed_possible_word {
+                break;
+            }
+            i -= 1;
+        }
+        // See if there are any guessed possible words to check. This is rare.
+        if i == 0 {
+            return;
+        }
+
+        i -= 1;
+        loop {
+            let word = &self.all_words[i];
+
+            if !filter(word.as_ref()) {
+                // We're going to bump the word to the end of section 1, then end of section 2, then end of section 3.
+                self._first_guessed_impossible_word -= 1;
+                self._num_possible_words -= 1;
+                self._first_unguessed_possible_word -= 1;
+                self.all_words.swap(i, self._first_unguessed_possible_word);
+                self.all_words.swap(
+                    self._first_unguessed_possible_word,
+                    self._num_possible_words,
+                );
+                self.all_words.swap(
+                    self._num_possible_words,
+                    self._first_guessed_impossible_word,
+                );
+            }
+            if i == 0 {
+                break;
+            }
+            i -= 1;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_grouped_words_new() -> Result<(), WordleError> {
+        let words =
+            WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
+        let grouped_words = GroupedWords::new(&words);
+
+        assert_eq!(grouped_words.all_words, words.to_vec());
+        assert_eq!(grouped_words.num_possible_words(), 3);
+        assert_eq!(grouped_words.num_unguessed_words(), 3);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_remove_guess_if_present() -> Result<(), WordleError> {
+        let words =
+            WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
+        let mut grouped_words = GroupedWords::new(&words);
+
+        // Remove random word, should be no-op.
+        grouped_words.remove_guess_if_present("cat");
+
+        assert_eq!(grouped_words.num_possible_words(), 3);
+        assert_eq!(grouped_words.num_unguessed_words(), 3);
+        assert_eq!(grouped_words.unguessed_words(), words.to_vec());
+
+        // Remove a present word, should remove it from unguessed words.
+        grouped_words.remove_guess_if_present("big");
+
+        assert_eq!(grouped_words.num_possible_words(), 3);
+        assert_eq!(grouped_words.num_unguessed_words(), 2);
+        assert_eq!(
+            grouped_words.unguessed_words(),
+            &[Arc::from("the"), Arc::from("dog")]
+        );
+        assert_eq!(
+            HashSet::from_iter(grouped_words.possible_words()),
+            (&words).iter().collect::<HashSet<_>>()
+        );
+
+        // Remove again, should be no-op.
+        grouped_words.remove_guess_if_present("big");
+
+        assert_eq!(grouped_words.num_possible_words(), 3);
+        assert_eq!(grouped_words.num_unguessed_words(), 2);
+        assert_eq!(
+            grouped_words.unguessed_words(),
+            &[Arc::from("the"), Arc::from("dog")]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filter_possible_words() -> Result<(), WordleError> {
+        let words =
+            WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
+        let mut grouped_words = GroupedWords::new(&words);
+
+        grouped_words.filter_possible_words(|word| word == "big");
+
+        assert_eq!(grouped_words.num_possible_words(), 1);
+        assert_eq!(grouped_words.num_unguessed_words(), 3);
+        assert_eq!(grouped_words.possible_words(), &[Arc::from("big")]);
+        assert_eq!(
+            HashSet::from_iter(grouped_words.unguessed_words()),
+            (&words).iter().collect::<HashSet<_>>()
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_guessing_the_word() -> Result<(), WordleError> {
+        let words =
+            WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
+        let mut grouped_words = GroupedWords::new(&words);
+
+        grouped_words.remove_guess_if_present("big");
+        grouped_words.filter_possible_words(|word| word == "big");
+
+        assert_eq!(grouped_words.num_possible_words(), 1);
+        assert_eq!(grouped_words.num_unguessed_words(), 2);
+        assert_eq!(grouped_words.possible_words(), &[Arc::from("big")]);
+        assert_eq!(
+            grouped_words
+                .unguessed_words()
+                .iter()
+                .collect::<HashSet<_>>(),
+            HashSet::from_iter(&[Arc::from("the"), Arc::from("dog")])
+        );
+
+        Ok(())
     }
 }
