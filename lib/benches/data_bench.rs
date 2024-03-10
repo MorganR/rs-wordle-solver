@@ -32,20 +32,10 @@ fn bench_word_counter_clone(b: &mut Bencher) -> Result<(), WordleError> {
 }
 
 #[bench]
-fn bench_word_tracker_from_slice(b: &mut Bencher) -> Result<(), WordleError> {
-    let words_reader = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
-    let bank = WordBank::from_reader(words_reader)?;
-
-    b.iter(|| WordTracker::from_slice(&bank));
-
-    Ok(())
-}
-
-#[bench]
 fn bench_word_tracker_clone(b: &mut Bencher) -> Result<(), WordleError> {
     let words_reader = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
     let bank = WordBank::from_reader(words_reader)?;
-    let tracker = WordTracker::from_slice(&bank);
+    let tracker: WordTracker = WordTracker::new(&bank);
 
     b.iter(|| tracker.clone());
 
