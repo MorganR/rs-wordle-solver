@@ -672,7 +672,7 @@ impl MaxComboEliminationsScorer {
             // Just pay attention to the best second guess, since we will choose the best guess, not
             // guess randomly.
             let mut best_second_eliminations = 0.0;
-            for &second_guess in second_words_to_guess.into_iter() {
+            for &second_guess in second_words_to_guess.iter() {
                 // We have to fully compute the best guess against all remaining possible solutions
                 // not just the currently chosen solution, because we still won't know what the
                 // solution is when we make that choice.
@@ -692,7 +692,7 @@ impl MaxComboEliminationsScorer {
         }
         // Take the average as the expectation value (again, we assume at this point that each
         // remaining possible objective is equally likely).
-        return total_expected_eliminations / num_possible_words as f64;
+        total_expected_eliminations / num_possible_words as f64
     }
 }
 
@@ -706,13 +706,11 @@ impl WordScorer for MaxComboEliminationsScorer {
         self.possible_words = possible_words.to_vec();
         match self.guess_from {
             GuessFrom::AllUnguessedWords => {
-                self.words_to_guess
+                if let Some(i) = self.words_to_guess
                     .par_iter()
-                    .position_any(|w| w.as_ref() == latest_guess)
-                    .and_then(|i| {
-                        self.words_to_guess.swap_remove(i);
-                        Some(())
-                    });
+                    .position_any(|w| w.as_ref() == latest_guess) {
+                    self.words_to_guess.swap_remove(i);
+                }
             }
             GuessFrom::PossibleWords => {
                 self.words_to_guess = possible_words.to_vec();
