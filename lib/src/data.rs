@@ -188,7 +188,7 @@ impl Deref for WordBank {
 /// assert_eq!(counter.num_words_with_located_letter(
 ///     &LocatedLetter::new('b', 0)), 1);
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WordCounter {
     num_words: u32,
     num_words_by_ll: HashMap<LocatedLetter, u32>,
@@ -319,9 +319,8 @@ where
 ///     Vec::from_iter(tracker.words_with_located_letter(LocatedLetter::new('b', 1))),
 ///     vec![&Arc::from("aba")]);
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WordTracker<'w> {
-    empty_list: Vec<Arc<str>>,
     all_words: &'w [Arc<str>],
     words_by_letter: HashMap<char, Vec<Arc<str>>>,
     words_by_located_letter: HashMap<LocatedLetter, Vec<Arc<str>>>,
@@ -365,7 +364,6 @@ impl<'w> WordTracker<'w> {
             }
         }
         WordTracker {
-            empty_list: Vec::new(),
             all_words,
             words_by_letter,
             words_by_located_letter,
@@ -429,7 +427,7 @@ impl<'w> WordTracker<'w> {
         self.words_by_located_letter
             .get(&ll)
             .map(|words| words.iter())
-            .unwrap_or_else(|| self.empty_list.iter())
+            .unwrap_or_default()
     }
 
     /// Returns an [`Iterator`] over words that have the given letter.
@@ -455,7 +453,7 @@ impl<'w> WordTracker<'w> {
         self.words_by_letter
             .get(&letter)
             .map(|words| words.iter())
-            .unwrap_or_else(|| self.empty_list.iter())
+            .unwrap_or_default()
     }
 
     /// Returns an [`Iterator`] over words that have the given letter, but not at the given
@@ -480,12 +478,12 @@ impl<'w> WordTracker<'w> {
     ///     0);
     /// ```
     pub fn words_with_letter_not_here(&self, ll: LocatedLetter) -> impl Iterator<Item = &Arc<str>> {
-        let words_with_letter: &Vec<Arc<str>> = self
+        let words_with_letter = self
             .words_by_letter
             .get(&ll.letter)
-            .unwrap_or(&self.empty_list);
+            .map(|words| words.iter())
+            .unwrap_or_default();
         words_with_letter
-            .iter()
             .filter(move |&word| word.chars().nth(ll.location as usize).unwrap() != ll.letter)
     }
 
