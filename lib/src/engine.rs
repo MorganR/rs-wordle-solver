@@ -4,10 +4,9 @@ use crate::data::*;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::scorers::WordScorer;
+use std::num::NonZeroUsize;
 use std::result::Result;
 use std::sync::Arc;
-
-const MIN_PARALLELIZATION_LIMIT: usize = 1000;
 
 /// Guesses words in order to solve a single Wordle.
 pub trait Guesser {
@@ -172,6 +171,7 @@ where
     grouped_words: GroupedWords,
     restrictions: WordRestrictions,
     scorer: T,
+    parallelisation_limit: usize,
 }
 
 impl<T> MaxScoreGuesser<T>
@@ -206,6 +206,28 @@ where
             grouped_words: GroupedWords::new(word_bank),
             restrictions: WordRestrictions::new(word_bank.word_length() as u8),
             scorer,
+            parallelisation_limit: std::thread::available_parallelism()
+                .map(NonZeroUsize::get)
+                .unwrap_or(1),
+        }
+    }
+
+    /// Constructs a new `MaxScoreGuesser` like [`Self::new()`], but with a custom
+    /// `parallelisation_limit`. Various internal operations may be parallelised if operating on
+    /// lists greater than this limit. The default setting is the result of
+    /// `std::thread::available_parallelism`.
+    pub fn with_parallelisation_limit(
+        guess_mode: GuessFrom,
+        word_bank: &WordBank,
+        scorer: T,
+        parallelisation_limit: usize,
+    ) -> MaxScoreGuesser<T> {
+        MaxScoreGuesser {
+            guess_mode,
+            grouped_words: GroupedWords::new(word_bank),
+            restrictions: WordRestrictions::new(word_bank.word_length() as u8),
+            scorer,
+            parallelisation_limit,
         }
     }
 
@@ -223,7 +245,7 @@ where
             GuessFrom::PossibleWords => self.grouped_words.possible_words(),
         };
 
-        let scored_words = if words_to_score.len() > MIN_PARALLELIZATION_LIMIT {
+        let scored_words = if words_to_score.len() >= self.parallelisation_limit {
             let mut scored_words: Vec<(&Arc<str>, i64)> = words_to_score
                 .par_iter()
                 .map(|word| (word, self.scorer.score_word(word)))
@@ -271,23 +293,36 @@ where
             && self.grouped_words.num_possible_words() > 2
         {
             let unguessed_words = self.grouped_words.unguessed_words();
-            let (_, best_index) = unguessed_words
-                .par_iter()
-                .enumerate()
-                .map(|(i, word)| (self.scorer.score_word(word), i))
-                .reduce(
-                    || (i64::MIN, usize::MAX),
-                    |(best_score, best_index), (score, index)| {
-                        if score > best_score {
-                            return (score, index);
-                        }
-                        // Use the lower index, because it is more likely to be a possible word.
-                        if score == best_score && index < best_index {
-                            return (score, index);
-                        }
-                        (best_score, best_index)
-                    },
-                );
+            let (_, best_index) = if unguessed_words.len() > self.parallelisation_limit {
+                unguessed_words
+                    .par_iter()
+                    .enumerate()
+                    .map(|(i, word)| (self.scorer.score_word(word), i))
+                    .reduce(
+                        || (i64::MIN, usize::MAX),
+                        |(best_score, best_index), (score, index)| {
+                            if score > best_score {
+                                return (score, index);
+                            }
+                            // Use the lower index, because it is more likely to be a possible word.
+                            if score == best_score && index < best_index {
+                                return (score, index);
+                            }
+                            (best_score, best_index)
+                        },
+                    )
+            } else {
+                let mut best_score = i64::MIN;
+                let mut best_index = 0;
+                unguessed_words.iter().enumerate().for_each(|(i, word)| {
+                    let score = self.scorer.score_word(word);
+                    if score > best_score {
+                        best_score = score;
+                        best_index = i;
+                    }
+                });
+                (best_score, best_index)
+            };
             if best_index > self.grouped_words.num_unguessed_words() {
                 return None;
             } else {
@@ -295,7 +330,7 @@ where
             }
         }
 
-        if self.grouped_words.num_possible_words() > MIN_PARALLELIZATION_LIMIT {
+        if self.grouped_words.num_possible_words() >= self.parallelisation_limit {
             return self
                 .grouped_words
                 .possible_words()

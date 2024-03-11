@@ -109,7 +109,7 @@ fn bench_max_approximate_eliminations_improved_words(b: &mut Bencher) -> Result<
 }
 
 #[bench]
-fn bench_max_eliminations_scorer_with_precomputed_improved_words(
+fn bench_max_eliminations_improved_words_with_precompute(
     b: &mut Bencher,
 ) -> std::result::Result<(), Box<dyn Error>> {
     let test_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
@@ -143,6 +143,54 @@ fn bench_max_eliminations_scorer_precompute_improved_words(
 
     Ok(())
 }
+
+macro_rules! bench_max_eliminations_with_precompute_parallelisation_limit {
+    ($limit:literal, $name:ident) => {
+        #[bench]
+        fn $name(b: &mut Bencher) -> std::result::Result<(), Box<dyn Error>> {
+            let test_words =
+                io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
+            let all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
+
+            let bank = WordBank::from_reader(all_words)?;
+            let scorer = MaxEliminationsScorer::new(&bank)?;
+
+            let test_words: Vec<String> =
+                test_words.lines().collect::<io::Result<Vec<String>>>()?;
+            let mut test_word_iter = test_words.iter().cycle();
+
+            b.iter(|| {
+                let test_word = test_word_iter.next().unwrap();
+                let guesser = MaxScoreGuesser::with_parallelisation_limit(
+                    GuessFrom::AllUnguessedWords,
+                    &bank,
+                    scorer.clone(),
+                    $limit,
+                );
+                return play_game_with_guesser(test_word, 128, guesser);
+            });
+
+            Ok(())
+        }
+    };
+}
+
+bench_max_eliminations_with_precompute_parallelisation_limit!(
+    1,
+    bench_max_eliminations_with_precompute_p0001
+);
+bench_max_eliminations_with_precompute_parallelisation_limit!(
+    10,
+    bench_max_eliminations_with_precompute_p0010
+);
+bench_max_eliminations_with_precompute_parallelisation_limit!(
+    128,
+    bench_max_eliminations_with_precompute_p0128
+);
+bench_max_eliminations_with_precompute_parallelisation_limit!(
+    1024,
+    bench_max_eliminations_with_precompute_p1024
+);
 
 #[bench]
 fn bench_select_top_5_guesses_all(b: &mut Bencher) -> Result<(), WordleError> {
@@ -183,26 +231,42 @@ fn bench_select_top_5_guesses_post_guess_all(b: &mut Bencher) -> Result<(), Word
     Ok(())
 }
 
-#[bench]
-fn bench_select_top_5_guesses_post_guess_possible_only(b: &mut Bencher) -> Result<(), WordleError> {
-    let test_words = io::BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
-    let all_words = io::BufReader::new(File::open("../data/wordle-words.txt")?);
+macro_rules! bench_select_top_n_parallelisation_limit {
+    ($limit:literal, $name:ident) => {
+        #[bench]
+        fn $name(b: &mut Bencher) -> std::result::Result<(), Box<dyn Error>> {
+            let test_words =
+                io::BufReader::new(File::open("../data/1000-wordle-words-shuffled.txt")?);
+            let all_words = io::BufReader::new(File::open("../data/wordle-words.txt")?);
 
-    let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
-    let mut test_word_iter = test_words.iter().cycle();
+            let test_words: Vec<String> =
+                test_words.lines().collect::<io::Result<Vec<String>>>()?;
+            let mut test_word_iter = test_words.iter().cycle();
 
-    let bank = WordBank::from_reader(all_words)?;
-    let scorer = MaxEliminationsScorer::new(&bank)?;
+            let bank = WordBank::from_reader(all_words)?;
+            let scorer = MaxEliminationsScorer::new(&bank)?;
 
-    let guess = "tares";
+            let guess = "tares";
 
-    b.iter(|| {
-        let test_word = test_word_iter.next().unwrap();
-        let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer.clone());
-        let result = get_result_for_guess(&test_word, guess);
-        guesser.update(&result.unwrap()).unwrap();
-        guesser.select_top_n_guesses(5)
-    });
+            b.iter(|| {
+                let test_word = test_word_iter.next().unwrap();
+                let mut guesser = MaxScoreGuesser::with_parallelisation_limit(
+                    GuessFrom::PossibleWords,
+                    &bank,
+                    scorer.clone(),
+                    $limit,
+                );
+                let result = get_result_for_guess(&test_word, guess);
+                guesser.update(&result.unwrap()).unwrap();
+                guesser.select_top_n_guesses(5)
+            });
 
-    Ok(())
+            Ok(())
+        }
+    };
 }
+
+bench_select_top_n_parallelisation_limit!(1, bench_select_top_5_post_guess_possible_only_p0001);
+bench_select_top_n_parallelisation_limit!(10, bench_select_top_5_post_guess_possible_only_p0010);
+bench_select_top_n_parallelisation_limit!(128, bench_select_top_5_post_guess_possible_only_p0128);
+bench_select_top_n_parallelisation_limit!(1024, bench_select_top_5_post_guess_possible_only_p1024);
