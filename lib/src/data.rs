@@ -1,5 +1,6 @@
 use crate::results::*;
 use std::collections::HashMap;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::io;
 use std::ops::Deref;
@@ -38,7 +39,7 @@ impl LocatedLetter {
 }
 
 /// Contains all the possible words for a Wordle game.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WordBank {
     all_words: Vec<Arc<str>>,
     word_length: usize,
@@ -182,7 +183,7 @@ impl Deref for WordBank {
 /// # use rs_wordle_solver::details::LocatedLetter;
 /// let all_words = vec!["aba", "bbd", "efg"];
 /// let counter = WordCounter::new(&all_words);
-///  
+///
 /// assert_eq!(counter.num_words(), 3);
 /// assert_eq!(counter.num_words_with_letter('b'), 2);
 /// assert_eq!(counter.num_words_with_located_letter(
@@ -213,7 +214,7 @@ impl WordCounter {
     ///
     /// let all_words = vec!["aba", "bbd", "efg"];
     /// let counter = WordCounter::from_iter(&all_words);
-    ///  
+    ///
     /// assert_eq!(counter.num_words_with_located_letter(
     ///     &LocatedLetter::new('b', 0)), 1);
     /// assert_eq!(counter.num_words_with_located_letter(
@@ -236,7 +237,7 @@ impl WordCounter {
     ///
     /// let all_words = vec!["aba", "bbd", "efg"];
     /// let counter = WordCounter::from_iter(&all_words);
-    ///  
+    ///
     /// assert_eq!(counter.num_words_with_letter('a'), 1);
     /// assert_eq!(counter.num_words_with_letter('b'), 2);
     /// assert_eq!(counter.num_words_with_letter('z'), 0);
@@ -513,7 +514,7 @@ impl<'w> WordTracker<'w> {
 
 /// Efficiently tracks all possible words and all unguessed words as zero-cost slices within a
 /// single array of all words. This assumes that only unguessed words are possible.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GroupedWords {
     pub all_words: Vec<Arc<str>>,
     // The `all_words` vector keeps words grouped according to whether they're still possible, and
@@ -641,6 +642,36 @@ impl GroupedWords {
     }
 }
 
+impl Display for GroupedWords {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("GroupedWords { possible, guessed: ")?;
+        f.debug_list()
+            .entries(self.all_words[0..self._first_unguessed_possible_word].iter())
+            .finish()?;
+        f.write_str("; possible, unguessed: ")?;
+        f.debug_list()
+            .entries(
+                self.all_words[self._first_unguessed_possible_word..self._num_possible_words]
+                    .iter(),
+            )
+            .finish()?;
+        f.write_str("; impossible, guessed: ")?;
+        f.debug_list()
+            .entries(
+                self.all_words[self._first_guessed_impossible_word..self.all_words.len()].iter(),
+            )
+            .finish()?;
+        f.write_str("; impossible, unguessed: ")?;
+        f.debug_list()
+            .entries(
+                self.all_words[self._num_possible_words..self._first_guessed_impossible_word]
+                    .iter(),
+            )
+            .finish()?;
+        f.write_str(" }")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -660,7 +691,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_guess_if_present() -> Result<(), WordleError> {
+    fn test_grouped_words_remove_guess_if_present() -> Result<(), WordleError> {
         let words =
             WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
         let mut grouped_words = GroupedWords::new(&words);
@@ -700,7 +731,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_possible_words() -> Result<(), WordleError> {
+    fn test_grouped_words_filter_possible_words() -> Result<(), WordleError> {
         let words =
             WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
         let mut grouped_words = GroupedWords::new(&words);
@@ -719,7 +750,7 @@ mod tests {
     }
 
     #[test]
-    fn test_guessing_the_word() -> Result<(), WordleError> {
+    fn test_grouped_words_guessing_the_word() -> Result<(), WordleError> {
         let words =
             WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
         let mut grouped_words = GroupedWords::new(&words);
@@ -738,6 +769,28 @@ mod tests {
             HashSet::from_iter(&[Arc::from("the"), Arc::from("dog")])
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_grouped_words_display() -> Result<(), WordleError> {
+        let words = WordBank::from_iterator(&[
+            Arc::from("the"),
+            Arc::from("big"),
+            Arc::from("dog"),
+            Arc::from("cat"),
+            Arc::from("bat"),
+        ])?;
+        let mut grouped_words = GroupedWords::new(&words);
+
+        grouped_words.remove_guess_if_present("the");
+        grouped_words.filter_possible_words(|word| word == "big" || word == "bat");
+        grouped_words.remove_guess_if_present("big");
+
+        assert_eq!(
+            format!("{}", grouped_words),
+            "GroupedWords { possible, guessed: [\"big\"]; possible, unguessed: [\"bat\"]; impossible, guessed: [\"the\"]; impossible, unguessed: [\"cat\", \"dog\"] }"
+        );
         Ok(())
     }
 }

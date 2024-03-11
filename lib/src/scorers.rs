@@ -706,9 +706,11 @@ impl WordScorer for MaxComboEliminationsScorer {
         self.possible_words = possible_words.to_vec();
         match self.guess_from {
             GuessFrom::AllUnguessedWords => {
-                if let Some(i) = self.words_to_guess
+                if let Some(i) = self
+                    .words_to_guess
                     .par_iter()
-                    .position_any(|w| w.as_ref() == latest_guess) {
+                    .position_any(|w| w.as_ref() == latest_guess)
+                {
                     self.words_to_guess.swap_remove(i);
                 }
             }

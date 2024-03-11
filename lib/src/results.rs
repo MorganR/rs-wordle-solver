@@ -62,9 +62,9 @@ pub enum WordleError {
 impl fmt::Display for WordleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            WordleError::WordLength(expected_length) => write!(f, "{:?}: All words and guesses in a Wordle game must have the same length, and must be less than the max word length. Max/expected word length: {}", self, expected_length),
-            WordleError::InvalidResults => write!(f, "{:?}: Provided GuessResults led to an impossible set of WordRestrictions.", self),
-            WordleError::IoError(io_err) => write!(f, "{:?}: IO error: {}", self, io_err),
+            WordleError::WordLength(expected_length) => write!(f, "{:?}: all words and guesses in a Wordle game must have the same length, and must be less than or equal to the max word length: {}", self, expected_length),
+            WordleError::InvalidResults => write!(f, "{:?}: provided GuessResults led to an impossible set of WordRestrictions", self),
+            WordleError::IoError(io_err) => write!(f, "{:?}: {}", self, io_err),
         }
     }
 }
@@ -97,7 +97,7 @@ impl From<std::io::Error> for WordleError {
 ///
 /// For example, if the guess was "sassy" for the objective word "mesas", then the results would
 /// be: `[PresentNotHere, PresentNotHere, Correct, NotPresent, NotPresent]`.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub struct GuessResult<'a> {
     /// The guess that was made.
     pub guess: &'a str,
@@ -106,7 +106,7 @@ pub struct GuessResult<'a> {
 }
 
 /// Data about a single turn of a Wordle game.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub struct TurnData {
     /// The guess that was made this turn.
     pub guess: Box<str>,
@@ -115,14 +115,14 @@ pub struct TurnData {
 }
 
 /// The data from a game that was played.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GameData {
     /// Data for each turn that was played.
     pub turns: Vec<TurnData>,
 }
 
 /// Whether the game was won or lost by the guesser.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GameResult {
     /// Indicates that the guesser won the game, and provides the guesses that were given.
     Success(GameData),

@@ -97,7 +97,7 @@ pub fn play_game_with_guesser<G: Guesser>(
 /// |12|1|
 ///
 /// **Average number of guesses:** 4.49 +/- 1.26
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RandomGuesser {
     possible_words: Vec<Arc<str>>,
     restrictions: WordRestrictions,
@@ -145,7 +145,7 @@ impl Guesser for RandomGuesser {
 }
 
 /// Indicates which set of words to guess from. See [`MaxScoreGuesser::new()`].
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum GuessFrom {
     /// Choose the next guess from any unguessed word in the whole word list.
     AllUnguessedWords,
@@ -154,7 +154,7 @@ pub enum GuessFrom {
 }
 
 /// Represents a guess with a 'score' estimating how useful the guess is. Higher scores are better.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScoredGuess {
     pub score: i64,
     pub guess: Arc<str>,
@@ -163,7 +163,7 @@ pub struct ScoredGuess {
 /// Selects the next guess that maximizes the score according to the owned scorer.
 ///
 /// See [`WordScorer`] for more information about possible scoring algorithms.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MaxScoreGuesser<T>
 where
     T: WordScorer + Clone + Sync,

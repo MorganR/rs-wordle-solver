@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use std::iter::zip;
 use std::result::Result;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 /// Indicates if a letter is known to be in a given location or not.
 enum LocatedLetterState {
     Unknown,
@@ -161,7 +161,7 @@ impl PresentLetter {
     /// If count is higher than the current min count, this bumps it up to the provided value and
     /// modifies the known data as needed.
     ///
-    /// Returns a [`WorldError::InvalidResults`] error if it would be impossible for `count`
+    /// Returns a [`WordleError::InvalidResults`] error if it would be impossible for `count`
     /// locations to be marked `Here` given what is already known about the word.
     pub fn possibly_bump_min_count(&mut self, count: u8) -> Result<(), WordleError> {
         if self.min_count >= count {
@@ -247,7 +247,7 @@ pub enum LetterRestriction {
 /// must be 'a'".
 ///
 /// Restrictions are derived from [`GuessResult`]s.
-#[derive(PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct WordRestrictions {
     word_length: u8,
     present_letters: BTreeMap<char, PresentLetter>,
