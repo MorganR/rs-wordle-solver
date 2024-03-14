@@ -10,5 +10,5 @@ edition.workspace = true
 
 [dependencies]
 rs-wordle-solver = { path = "../lib", features = [ "serde" ] }
-serde = { version = "1.0.193", features = ["rc"] }
+serde = { version = "1.0.197", features = ["rc"] }
 ron = "0.8.1"
