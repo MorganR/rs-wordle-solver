@@ -4,12 +4,13 @@ use crate::data::*;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::scorers::WordScorer;
+use dyn_clone::DynClone;
 use std::num::NonZeroUsize;
 use std::result::Result;
 use std::sync::Arc;
 
 /// Guesses words in order to solve a single Wordle.
-pub trait Guesser {
+pub trait Guesser: DynClone {
     /// Updates this guesser with information about a word.
     fn update(&mut self, result: &GuessResult) -> Result<(), WordleError>;
 
@@ -200,7 +201,7 @@ where
     /// use rs_wordle_solver::scorers::MaxEliminationsScorer;
     ///
     /// let bank = WordBank::from_iterator(&["azz", "bzz", "czz", "abc"]).unwrap();
-    /// let scorer = MaxEliminationsScorer::new(bank.clone()).unwrap();
+    /// let scorer = MaxEliminationsScorer::new(bank.clone());
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
     ///
     /// assert_eq!(guesser.select_next_guess(), Some(Arc::from("abc")));

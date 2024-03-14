@@ -427,15 +427,15 @@ impl MaxEliminationsScorer {
     /// use rs_wordle_solver::scorers::MaxEliminationsScorer;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
-    /// let scorer = MaxEliminationsScorer::new(bank.clone()).unwrap();
+    /// let scorer = MaxEliminationsScorer::new(bank.clone());
     /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
-    pub fn new(all_words: WordBank) -> Result<MaxEliminationsScorer, WordleError> {
-        Ok(MaxEliminationsScorer {
+    pub fn new(all_words: WordBank) -> MaxEliminationsScorer {
+        MaxEliminationsScorer {
             possible_words: all_words.all_words,
-        })
+        }
     }
 
     fn compute_expected_eliminations(&self, word: &Arc<str>) -> f64 {

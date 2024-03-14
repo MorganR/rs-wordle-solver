@@ -595,11 +595,11 @@ impl GroupedWords {
     where
         F: Fn(&str) -> bool,
     {
-        if self.num_possible_words == 0 {
+        if self.num_possible_words - self.first_unguessed_possible_word == 0 {
             return;
         }
 
-        // Iterate backwards so that, in the common case, we swap the minimum numher of words.
+        // Iterate backwards so that, in the common case, we swap the minimum number of words.
         let mut i = self.num_possible_words - 1;
         loop {
             let word = &self.all_words[i];
@@ -714,7 +714,7 @@ mod tests {
         );
         assert_eq!(
             HashSet::from_iter(grouped_words.possible_words()),
-            (&words).iter().collect::<HashSet<_>>()
+            words.iter().collect::<HashSet<_>>()
         );
 
         // Remove again, should be no-op.
@@ -743,7 +743,7 @@ mod tests {
         assert_eq!(grouped_words.possible_words(), &[Arc::from("big")]);
         assert_eq!(
             HashSet::from_iter(grouped_words.unguessed_words()),
-            (&words).iter().collect::<HashSet<_>>()
+            words.iter().collect::<HashSet<_>>()
         );
 
         Ok(())

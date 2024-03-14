@@ -51,6 +51,7 @@ mod max_unique_letters_scorer {
     test_scorer!(create_scorer);
 }
 
+#[allow(clippy::identity_op)]
 mod score_located_letters {
 
     use super::*;
@@ -93,7 +94,7 @@ mod score_located_letters {
                 LetterResult::NotPresent,
             ],
         });
-        scorer.update("begot", &restrictions, &vec![Arc::from("endow")])?;
+        scorer.update("begot", &restrictions, &[Arc::from("endow")])?;
         // Remaining possible words: 'endow'
 
         assert_eq!(scorer.score_word(&Arc::from("alpha")), 0 + 0 + 0 + 0 + 0);
@@ -122,7 +123,7 @@ mod score_located_letters {
         scorer.update(
             "other",
             &restrictions,
-            &vec![Arc::from("below"), Arc::from("endow")],
+            &[Arc::from("below"), Arc::from("endow")],
         )?;
         // Remaining possible words: 'below', 'endow'
 
@@ -150,7 +151,7 @@ mod max_eliminations_scorer {
     use super::*;
 
     fn create_scorer(bank: &WordBank) -> MaxEliminationsScorer {
-        MaxEliminationsScorer::new(bank.clone()).unwrap()
+        MaxEliminationsScorer::new(bank.clone())
     }
 
     test_scorer!(create_scorer);
@@ -160,7 +161,7 @@ mod max_eliminations_scorer {
         let possible_words =
             WordBank::from_iterator(vec![Arc::from("cod"), Arc::from("wod"), Arc::from("mod")])
                 .unwrap();
-        let scorer = MaxEliminationsScorer::new(possible_words.clone()).unwrap();
+        let scorer = MaxEliminationsScorer::new(possible_words.clone());
 
         assert_eq!(scorer.score_word(&possible_words[0]), 1333);
         assert_eq!(scorer.score_word(&Arc::from("mwc")), 2000);
@@ -177,7 +178,7 @@ mod max_eliminations_scorer {
             Arc::from("zzz"),
         ])
         .unwrap();
-        let mut scorer = MaxEliminationsScorer::new(possible_words.clone()).unwrap();
+        let mut scorer = MaxEliminationsScorer::new(possible_words.clone());
 
         let restrictions = WordRestrictions::from_result(&GuessResult {
             guess: "zza",

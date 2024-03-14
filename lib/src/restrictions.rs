@@ -688,8 +688,8 @@ mod tests {
         assert!(restrictions.is_satisfied_by("zzzz"));
 
         // Wrong length
-        assert_eq!(restrictions.is_satisfied_by(""), false);
-        assert_eq!(restrictions.is_satisfied_by("abcde"), false);
+        assert!(!restrictions.is_satisfied_by(""));
+        assert!(!restrictions.is_satisfied_by("abcde"));
     }
 
     #[test]
@@ -709,10 +709,10 @@ mod tests {
         assert!(restrictions.is_satisfied_by("bdba"));
         assert!(restrictions.is_satisfied_by("dabb"));
 
-        assert_eq!(restrictions.is_satisfied_by("bbba"), false);
-        assert_eq!(restrictions.is_satisfied_by("bcba"), false);
-        assert_eq!(restrictions.is_satisfied_by("adbd"), false);
-        assert_eq!(restrictions.is_satisfied_by("bdbd"), false);
+        assert!(!restrictions.is_satisfied_by("bbba"));
+        assert!(!restrictions.is_satisfied_by("bcba"));
+        assert!(!restrictions.is_satisfied_by("adbd"));
+        assert!(!restrictions.is_satisfied_by("bdbd"));
         Ok(())
     }
 
@@ -781,17 +781,11 @@ mod tests {
         })?;
 
         assert!(restrictions.is_state_known(LocatedLetter::new('a', 0)));
-        assert_eq!(
-            restrictions.is_state_known(LocatedLetter::new('a', 1)),
-            false
-        );
+        assert!(!restrictions.is_state_known(LocatedLetter::new('a', 1)));
         assert!(restrictions.is_state_known(LocatedLetter::new('b', 2)));
         assert!(restrictions.is_state_known(LocatedLetter::new('c', 3)));
         assert!(restrictions.is_state_known(LocatedLetter::new('c', 0)));
-        assert_eq!(
-            restrictions.is_state_known(LocatedLetter::new('z', 0)),
-            false
-        );
+        assert!(!restrictions.is_state_known(LocatedLetter::new('z', 0)));
         Ok(())
     }
 
@@ -813,9 +807,9 @@ mod tests {
         assert!(restrictions.is_satisfied_by("dabe"));
         assert!(restrictions.is_satisfied_by("daba"));
 
-        assert_eq!(restrictions.is_satisfied_by("bdba"), false);
-        assert_eq!(restrictions.is_satisfied_by("dcba"), false);
-        assert_eq!(restrictions.is_satisfied_by("adbd"), false);
+        assert!(!restrictions.is_satisfied_by("bdba"));
+        assert!(!restrictions.is_satisfied_by("dcba"));
+        assert!(!restrictions.is_satisfied_by("adbd"));
         Ok(())
     }
 
@@ -836,8 +830,8 @@ mod tests {
         assert!(restrictions.is_satisfied_by("beba"));
         assert!(restrictions.is_satisfied_by("dabb"));
 
-        assert_eq!(restrictions.is_satisfied_by("edba"), false);
-        assert_eq!(restrictions.is_satisfied_by("ebbd"), false);
+        assert!(!restrictions.is_satisfied_by("edba"));
+        assert!(!restrictions.is_satisfied_by("ebbd"));
         Ok(())
     }
 
@@ -859,10 +853,10 @@ mod tests {
 
         assert!(restrictions.is_satisfied_by("babd"));
         assert!(restrictions.is_satisfied_by("baba"));
-        assert_eq!(restrictions.is_satisfied_by("babc"), false);
-        assert_eq!(restrictions.is_satisfied_by("badb"), false);
-        assert_eq!(restrictions.is_satisfied_by("adbb"), false);
-        assert_eq!(restrictions.is_satisfied_by("dbba"), false);
+        assert!(!restrictions.is_satisfied_by("babc"));
+        assert!(!restrictions.is_satisfied_by("badb"));
+        assert!(!restrictions.is_satisfied_by("adbb"));
+        assert!(!restrictions.is_satisfied_by("dbba"));
         Ok(())
     }
 
@@ -892,7 +886,7 @@ mod tests {
         restrictions.merge(&other_restrictions)?;
 
         assert!(restrictions.is_satisfied_by("babe"));
-        assert_eq!(restrictions.is_satisfied_by("baee"), false);
+        assert!(!restrictions.is_satisfied_by("baee"));
         Ok(())
     }
 

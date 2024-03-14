@@ -12,7 +12,7 @@ mod tests {
     #[test]
     fn max_eliminations_scorer_serde() {
         let word_bank = WordBank::from_iterator(vec!["worda", "wordb"]).unwrap();
-        let scorer = MaxEliminationsScorer::new(word_bank.clone()).unwrap();
+        let scorer = MaxEliminationsScorer::new(word_bank.clone());
         let score = scorer.score_word(&(&word_bank)[0]);
 
         let ser = ron::to_string(&scorer);
@@ -29,7 +29,7 @@ mod tests {
         let all_words = io::BufReader::new(File::open("../data/1000-improved-words-shuffled.txt")?);
 
         let bank = WordBank::from_reader(all_words)?;
-        let scorer = MaxEliminationsScorer::new(bank.clone()).unwrap();
+        let scorer = MaxEliminationsScorer::new(bank.clone());
         let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
         // Assume the word is "groan".
         guesser.update(&GuessResult {

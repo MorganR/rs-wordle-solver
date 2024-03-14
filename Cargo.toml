@@ -1,5 +1,6 @@
 [workspace]
-members = ["lib", "serde_tests"]
+members = ["lib", "serde_tests", "bin"]
+default-members = ["lib"]
 resolver = "2"
 
 [workspace.package]

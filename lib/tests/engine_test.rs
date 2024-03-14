@@ -204,14 +204,15 @@ fn play_game_with_known_word_random() -> Result<(), WordleError> {
     let bank = WordBank::from_iterator(vec!["abcz", "weyz", "defy", "ghix"])?;
     let guesser = RandomGuesser::new(bank);
 
-    if let GameResult::Success(data) = play_game_with_guesser("abcz", 10, guesser) {
+    let result = play_game_with_guesser("abcz", 10, guesser);
+    if let GameResult::Success(data) = result {
         assert!(data.turns.len() < 10);
         assert_eq!(
             data.turns.iter().map(|turn| &turn.guess).last(),
             Some(&Box::from("abcz"))
         );
     } else {
-        assert!(false);
+        panic!("Game failed: {:?}", result);
     }
     Ok(())
 }
@@ -219,7 +220,7 @@ fn play_game_with_known_word_random() -> Result<(), WordleError> {
 #[test]
 fn play_game_with_unknown_word_max_eliminations() -> Result<(), WordleError> {
     let bank = WordBank::from_iterator(vec!["abcz", "weyz", "defy", "ghix"])?;
-    let scorer = MaxEliminationsScorer::new(bank.clone()).unwrap();
+    let scorer = MaxEliminationsScorer::new(bank.clone());
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, bank, scorer);
 
     assert_eq!(
@@ -232,17 +233,18 @@ fn play_game_with_unknown_word_max_eliminations() -> Result<(), WordleError> {
 #[test]
 fn play_game_with_known_word_max_eliminations() -> Result<(), WordleError> {
     let bank = WordBank::from_iterator(vec!["abcz", "weyz", "defy", "ghix"])?;
-    let scorer = MaxEliminationsScorer::new(bank.clone()).unwrap();
+    let scorer = MaxEliminationsScorer::new(bank.clone());
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, bank, scorer);
 
-    if let GameResult::Success(data) = play_game_with_guesser("abcz", 10, guesser) {
+    let result = play_game_with_guesser("abcz", 10, guesser);
+    if let GameResult::Success(data) = result {
         assert!(data.turns.len() < 10);
         assert_eq!(
             data.turns.iter().map(|turn| &turn.guess).last(),
             Some(&Box::from("abcz"))
         );
     } else {
-        assert!(false);
+        panic!("Game failed: {:?}", result);
     }
     Ok(())
 }
@@ -253,7 +255,8 @@ fn play_game_takes_too_many_guesses() -> Result<(), WordleError> {
     let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
     let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, bank, scorer);
 
-    if let GameResult::Failure(data) = play_game_with_guesser("abcz", 1, guesser) {
+    let result = play_game_with_guesser("abcz", 1, guesser);
+    if let GameResult::Failure(data) = result {
         assert_eq!(data.turns.len(), 1);
         assert!(!data
             .turns
@@ -261,7 +264,7 @@ fn play_game_takes_too_many_guesses() -> Result<(), WordleError> {
             .map(|turn| &turn.guess)
             .any(|guess| guess == &Box::from("abcz")));
     } else {
-        assert!(false);
+        panic!("Game succeeded unexpectedly: {:?}", result);
     }
     Ok(())
 }
