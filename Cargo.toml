@@ -1,0 +1,15 @@
+[workspace]
+members = ["lib", "serde_tests"]
+resolver = "2"
+
+[workspace.package]
+version = "0.3.0"
+authors = [
+    "Morgan Roff <roffmorgan@gmail.com>",
+]
+description = "A library for solving Wordle-style puzzles. It provides multiple guessing algorithms, as well as building blocks for implementing your own Wordle solving algorithms."
+keywords = ["wordle", "solver", "puzzle", "game", "guess"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/MorganR/rs-wordle-solver"
+edition = "2021"

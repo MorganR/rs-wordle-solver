@@ -26,6 +26,7 @@ use std::sync::Arc;
 /// ]);
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LocatedLetter {
     pub letter: char,
     /// The zero-based location (i.e. index) for this letter in a word.
@@ -40,6 +41,7 @@ impl LocatedLetter {
 
 /// Contains all the possible words for a Wordle game.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct WordBank {
     pub(crate) all_words: Vec<Arc<str>>,
     word_length: usize,
@@ -190,6 +192,7 @@ impl Deref for WordBank {
 ///     &LocatedLetter::new('b', 0)), 1);
 /// ```
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct WordCounter {
     num_words: u32,
     num_words_by_ll: HashMap<LocatedLetter, u32>,
@@ -515,17 +518,18 @@ impl<'w> WordTracker<'w> {
 /// Efficiently tracks all possible words and all unguessed words as zero-cost slices within a
 /// single array of all words. This assumes that only unguessed words are possible.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GroupedWords {
     pub all_words: Vec<Arc<str>>,
     // The `all_words` vector keeps words grouped according to whether they're still possible, and
     // whether they have been guessed. It's grouped into four sections:
     // Index: 0
     // 1. Words that have been guessed, and are still possible. Then index:
-    _first_unguessed_possible_word: usize,
+    first_unguessed_possible_word: usize,
     // 2. Words that have not been guessed, and are still possible. Then index:
-    _num_possible_words: usize,
+    num_possible_words: usize,
     // 3. Words that have not been guessed, but are not possible. Then index:
-    _first_guessed_impossible_word: usize,
+    first_guessed_impossible_word: usize,
     // 4. Words that have been guessed, and are not possible.
 }
 
@@ -536,28 +540,29 @@ impl GroupedWords {
         let num_words = words.len();
         Self {
             all_words: words.all_words,
-            _first_unguessed_possible_word: 0,
-            _num_possible_words: num_words,
-            _first_guessed_impossible_word: num_words,
+            first_unguessed_possible_word: 0,
+            num_possible_words: num_words,
+            first_guessed_impossible_word: num_words,
         }
     }
 
     pub fn num_possible_words(&self) -> usize {
-        self._num_possible_words
+        self.num_possible_words
     }
 
+    #[cfg(test)]
     pub fn num_unguessed_words(&self) -> usize {
-        self._first_guessed_impossible_word - self._first_unguessed_possible_word
+        self.first_guessed_impossible_word - self.first_unguessed_possible_word
     }
 
     /// The slice of all unguessed words. Guaranteed to start with possible words.
     pub fn unguessed_words(&self) -> &[Arc<str>] {
-        &self.all_words[self._first_unguessed_possible_word..self._first_guessed_impossible_word]
+        &self.all_words[self.first_unguessed_possible_word..self.first_guessed_impossible_word]
     }
 
     /// The slice of all possible words.
     pub fn possible_words(&self) -> &[Arc<str>] {
-        &self.all_words[0..self._num_possible_words]
+        &self.all_words[0..self.num_possible_words]
     }
 
     /// Removes this word from the set of unguessed words, if it's present in the word list.
@@ -569,18 +574,18 @@ impl GroupedWords {
             .unguessed_words()
             .iter()
             .position(|word| word.as_ref() == guess)
-            .map(|unguessed_position| unguessed_position + self._first_unguessed_possible_word)
+            .map(|unguessed_position| unguessed_position + self.first_unguessed_possible_word)
         {
             // If it's a possible word, put it in section 1.
-            if position < self._num_possible_words {
+            if position < self.num_possible_words {
                 self.all_words
-                    .swap(position, self._first_unguessed_possible_word);
-                self._first_unguessed_possible_word += 1;
+                    .swap(position, self.first_unguessed_possible_word);
+                self.first_unguessed_possible_word += 1;
             } else {
                 // If it's an impossible word, put it in section 4.
                 self.all_words
-                    .swap(position, self._first_guessed_impossible_word - 1);
-                self._first_guessed_impossible_word -= 1;
+                    .swap(position, self.first_guessed_impossible_word - 1);
+                self.first_guessed_impossible_word -= 1;
             }
         }
     }
@@ -590,23 +595,23 @@ impl GroupedWords {
     where
         F: Fn(&str) -> bool,
     {
-        if self._num_possible_words == 0 {
+        if self.num_possible_words == 0 {
             return;
         }
 
         // Iterate backwards so that, in the common case, we swap the minimum numher of words.
-        let mut i = self._num_possible_words - 1;
+        let mut i = self.num_possible_words - 1;
         loop {
             let word = &self.all_words[i];
 
             if !filter(word.as_ref()) {
                 // Move this word from section 2 (possible unguessed words) to section 3 (impossible
                 // unguessed words).
-                self._num_possible_words -= 1;
-                self.all_words.swap(i, self._num_possible_words);
+                self.num_possible_words -= 1;
+                self.all_words.swap(i, self.num_possible_words);
             }
 
-            if i == self._first_unguessed_possible_word {
+            if i == self.first_unguessed_possible_word {
                 break;
             }
             i -= 1;
@@ -622,18 +627,14 @@ impl GroupedWords {
 
             if !filter(word.as_ref()) {
                 // We're going to bump the word to the end of section 1, then end of section 2, then end of section 3.
-                self._first_guessed_impossible_word -= 1;
-                self._num_possible_words -= 1;
-                self._first_unguessed_possible_word -= 1;
-                self.all_words.swap(i, self._first_unguessed_possible_word);
-                self.all_words.swap(
-                    self._first_unguessed_possible_word,
-                    self._num_possible_words,
-                );
-                self.all_words.swap(
-                    self._num_possible_words,
-                    self._first_guessed_impossible_word,
-                );
+                self.first_guessed_impossible_word -= 1;
+                self.num_possible_words -= 1;
+                self.first_unguessed_possible_word -= 1;
+                self.all_words.swap(i, self.first_unguessed_possible_word);
+                self.all_words
+                    .swap(self.first_unguessed_possible_word, self.num_possible_words);
+                self.all_words
+                    .swap(self.num_possible_words, self.first_guessed_impossible_word);
             }
             if i == 0 {
                 break;
@@ -647,26 +648,24 @@ impl Display for GroupedWords {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("GroupedWords { possible, guessed: ")?;
         f.debug_list()
-            .entries(self.all_words[0..self._first_unguessed_possible_word].iter())
+            .entries(self.all_words[0..self.first_unguessed_possible_word].iter())
             .finish()?;
         f.write_str("; possible, unguessed: ")?;
         f.debug_list()
             .entries(
-                self.all_words[self._first_unguessed_possible_word..self._num_possible_words]
-                    .iter(),
+                self.all_words[self.first_unguessed_possible_word..self.num_possible_words].iter(),
             )
             .finish()?;
         f.write_str("; impossible, guessed: ")?;
         f.debug_list()
             .entries(
-                self.all_words[self._first_guessed_impossible_word..self.all_words.len()].iter(),
+                self.all_words[self.first_guessed_impossible_word..self.all_words.len()].iter(),
             )
             .finish()?;
         f.write_str("; impossible, unguessed: ")?;
         f.debug_list()
             .entries(
-                self.all_words[self._num_possible_words..self._first_guessed_impossible_word]
-                    .iter(),
+                self.all_words[self.num_possible_words..self.first_guessed_impossible_word].iter(),
             )
             .finish()?;
         f.write_str(" }")

@@ -9,6 +9,7 @@ use std::iter::zip;
 use std::result::Result;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Indicates if a letter is known to be in a given location or not.
 enum LocatedLetterState {
     Unknown,
@@ -18,6 +19,7 @@ enum LocatedLetterState {
 
 /// Indicates information about a letter that is in the word.
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct PresentLetter {
     /// If known, the letter must appear exactly this many times in the word.
     maybe_required_count: Option<u8>,
@@ -248,6 +250,7 @@ pub enum LetterRestriction {
 ///
 /// Restrictions are derived from [`GuessResult`]s.
 #[derive(Debug, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct WordRestrictions {
     word_length: u8,
     present_letters: BTreeMap<char, PresentLetter>,

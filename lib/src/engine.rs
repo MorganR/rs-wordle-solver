@@ -97,6 +97,7 @@ pub fn play_game_with_guesser<G: Guesser>(
 ///
 /// **Average number of guesses:** 4.49 +/- 1.26
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RandomGuesser {
     possible_words: Vec<Arc<str>>,
     restrictions: WordRestrictions,
@@ -146,6 +147,7 @@ impl Guesser for RandomGuesser {
 
 /// Indicates which set of words to guess from. See [`MaxScoreGuesser::new()`].
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum GuessFrom {
     /// Choose the next guess from any unguessed word in the whole word list.
     AllUnguessedWords,
@@ -164,6 +166,7 @@ pub struct ScoredGuess {
 ///
 /// See [`WordScorer`] for more information about possible scoring algorithms.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxScoreGuesser<T>
 where
     T: WordScorer + Clone + Sync,

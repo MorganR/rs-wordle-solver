@@ -67,6 +67,7 @@ pub trait WordScorer {
 ///
 /// Guess from `AllUnguessedWords`: 4.12 +/- 0.87
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxUniqueLetterFrequencyScorer {
     guessed_letters: HashSet<char>,
     word_counter: WordCounter,
@@ -177,6 +178,7 @@ impl WordScorer for MaxUniqueLetterFrequencyScorer {
 ///
 /// Guess from `AllUnguessedWords`: 3.90 +/- 0.99
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LocatedLettersScorer {
     counter: WordCounter,
     restrictions: WordRestrictions,
@@ -297,6 +299,7 @@ impl WordScorer for LocatedLettersScorer {
 ///
 /// Guess from `AllUnguessedWords`: 3.85 +/- 0.72
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxApproximateEliminationsScorer {
     counter: WordCounter,
 }
@@ -408,6 +411,7 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 ///
 /// Guess from `AllUnguessedWords`: 3.78 +/- 0.65
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxEliminationsScorer {
     possible_words: Vec<Arc<str>>,
 }
@@ -490,6 +494,7 @@ impl WordScorer for MaxEliminationsScorer {
 /// This is very expensive to run, and seems to perform worse than [`MaxEliminationsScorer`], so you
 /// should probably use that instead. Constructing this solver with 4602 words takes almost 6 hours.
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxComboEliminationsScorer {
     words_to_guess: Vec<Arc<str>>,
     possible_words: Vec<Arc<str>>,

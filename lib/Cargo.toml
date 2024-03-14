@@ -1,23 +1,22 @@
 [package]
-authors = [
-    "Morgan Roff <roffmorgan@gmail.com>",
-]
-description = "A library for solving Wordle-style puzzles. It provides multiple guessing algorithms, as well as building blocks for implementing your own Wordle solving algorithms."
-edition = "2021"
-keywords = ["wordle", "solver", "puzzle", "game", "guess"]
-license = "MIT OR Apache-2.0"
+version.workspace = true
+authors.workspace = true
 name = "rs-wordle-solver"
-readme = "../README.md"
-repository = "https://github.com/MorganR/rs-wordle-solver"
-version = "0.3.0"
+description.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+serde = ["dep:serde"]
 
 [dependencies]
 rand = "0.8.4"
 rayon = "1.7.0"
+serde = { version = "1.0.193", features = ["rc", "derive"], optional=true }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
-serde = { version = "1.0.193", features = ["rc"] }
-ron = "0.8.1"

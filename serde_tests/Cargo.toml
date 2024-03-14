@@ -1,0 +1,14 @@
+[package]
+name = "serde_tests"
+version.workspace = true
+authors.workspace = true
+description = "Tests for the 'serde' features in rs-wordle-solver"
+license.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rs-wordle-solver = { path = "../lib", features = [ "serde" ] }
+serde = { version = "1.0.193", features = ["rc"] }
+ron = "0.8.1"
