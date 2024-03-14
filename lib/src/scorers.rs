@@ -84,10 +84,11 @@ impl MaxUniqueLetterFrequencyScorer {
     /// use rs_wordle_solver::scorers::MaxUniqueLetterFrequencyScorer;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
+    /// let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
     /// let mut guesser = MaxScoreGuesser::new(
     ///     GuessFrom::AllUnguessedWords,
-    ///     &bank,
-    ///     MaxUniqueLetterFrequencyScorer::new(&*bank));
+    ///     bank,
+    ///     scorer);
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
@@ -194,14 +195,14 @@ impl LocatedLettersScorer {
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
     /// let scorer = LocatedLettersScorer::new(&bank);
-    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer.clone());
+    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer.clone());
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
     pub fn new(bank: &WordBank) -> LocatedLettersScorer {
         LocatedLettersScorer {
             restrictions: WordRestrictions::new(bank.word_length() as u8),
-            counter: WordCounter::from_iter(&**bank),
+            counter: WordCounter::new(bank),
         }
     }
 }
@@ -314,14 +315,11 @@ impl MaxApproximateEliminationsScorer {
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
     /// let scorer = MaxApproximateEliminationsScorer::new(&bank);
-    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
+    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
-    pub fn new<S>(all_words: &[S]) -> MaxApproximateEliminationsScorer
-    where
-        S: AsRef<str>,
-    {
+    pub fn new(all_words: &WordBank) -> MaxApproximateEliminationsScorer {
         MaxApproximateEliminationsScorer {
             counter: WordCounter::new(all_words),
         }
@@ -425,14 +423,14 @@ impl MaxEliminationsScorer {
     /// use rs_wordle_solver::scorers::MaxEliminationsScorer;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
-    /// let scorer = MaxEliminationsScorer::new(&bank).unwrap();
-    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
+    /// let scorer = MaxEliminationsScorer::new(bank.clone()).unwrap();
+    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
-    pub fn new(all_words: &[Arc<str>]) -> Result<MaxEliminationsScorer, WordleError> {
+    pub fn new(all_words: WordBank) -> Result<MaxEliminationsScorer, WordleError> {
         Ok(MaxEliminationsScorer {
-            possible_words: all_words.to_vec(),
+            possible_words: all_words.all_words,
         })
     }
 
@@ -521,7 +519,7 @@ impl MaxComboEliminationsScorer {
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
     /// let guess_from = GuessFrom::AllUnguessedWords;
     /// let scorer = MaxComboEliminationsScorer::new(&bank, guess_from, 1000).unwrap();
-    /// let mut guesser = MaxScoreGuesser::new(guess_from, &bank, scorer);
+    /// let mut guesser = MaxScoreGuesser::new(guess_from, bank, scorer);
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
@@ -530,7 +528,7 @@ impl MaxComboEliminationsScorer {
         guess_from: GuessFrom,
         min_possible_words_for_combo: usize,
     ) -> Result<MaxComboEliminationsScorer, WordleError> {
-        let mut scorer = MaxComboEliminationsScorer {
+        let scorer = MaxComboEliminationsScorer {
             words_to_guess: all_words.iter().map(Arc::clone).collect(),
             possible_words: all_words.iter().map(Arc::clone).collect(),
             guess_from,

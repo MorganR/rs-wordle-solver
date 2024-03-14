@@ -10,7 +10,7 @@
 //! // Construct a WordBank to select guesses from.
 //! let bank = WordBank::from_iterator(&["abc", "bcd", "def"])?;
 //! // Construct a guesser.
-//! let guesser = RandomGuesser::new(&bank);
+//! let guesser = RandomGuesser::new(bank);
 //! // Play the game.
 //! let max_number_of_guesses = 3;
 //! let objective = "bcd";
@@ -28,7 +28,7 @@
 //! // Construct a WordBank to select guesses from.
 //! let bank = WordBank::from_iterator(&["abc", "bcd", "def"])?;
 //! // Construct a guesser.
-//! let mut guesser = RandomGuesser::new(&bank);
+//! let mut guesser = RandomGuesser::new(bank);
 //!
 //! // Take a guess
 //! let objective = "abc";

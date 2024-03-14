@@ -41,7 +41,7 @@ impl LocatedLetter {
 /// Contains all the possible words for a Wordle game.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WordBank {
-    all_words: Vec<Arc<str>>,
+    pub(crate) all_words: Vec<Arc<str>>,
     word_length: usize,
 }
 
@@ -532,12 +532,13 @@ pub struct GroupedWords {
 impl GroupedWords {
     /// Constructs a new GroupedWords instance. Initially all words are considered possible and
     /// unguessed.
-    pub fn new(words: &WordBank) -> Self {
+    pub fn new(words: WordBank) -> Self {
+        let num_words = words.len();
         Self {
-            all_words: words.to_vec(),
+            all_words: words.all_words,
             _first_unguessed_possible_word: 0,
-            _num_possible_words: words.len(),
-            _first_guessed_impossible_word: words.len(),
+            _num_possible_words: num_words,
+            _first_guessed_impossible_word: num_words,
         }
     }
 
@@ -681,7 +682,7 @@ mod tests {
     fn test_grouped_words_new() -> Result<(), WordleError> {
         let words =
             WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
-        let grouped_words = GroupedWords::new(&words);
+        let grouped_words = GroupedWords::new(words.clone());
 
         assert_eq!(grouped_words.all_words, words.to_vec());
         assert_eq!(grouped_words.num_possible_words(), 3);
@@ -694,7 +695,7 @@ mod tests {
     fn test_grouped_words_remove_guess_if_present() -> Result<(), WordleError> {
         let words =
             WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
-        let mut grouped_words = GroupedWords::new(&words);
+        let mut grouped_words = GroupedWords::new(words.clone());
 
         // Remove random word, should be no-op.
         grouped_words.remove_guess_if_present("cat");
@@ -734,7 +735,7 @@ mod tests {
     fn test_grouped_words_filter_possible_words() -> Result<(), WordleError> {
         let words =
             WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
-        let mut grouped_words = GroupedWords::new(&words);
+        let mut grouped_words = GroupedWords::new(words.clone());
 
         grouped_words.filter_possible_words(|word| word == "big");
 
@@ -753,7 +754,7 @@ mod tests {
     fn test_grouped_words_guessing_the_word() -> Result<(), WordleError> {
         let words =
             WordBank::from_iterator(&[Arc::from("the"), Arc::from("big"), Arc::from("dog")])?;
-        let mut grouped_words = GroupedWords::new(&words);
+        let mut grouped_words = GroupedWords::new(words.clone());
 
         grouped_words.remove_guess_if_present("big");
         grouped_words.filter_possible_words(|word| word == "big");
@@ -781,7 +782,7 @@ mod tests {
             Arc::from("cat"),
             Arc::from("bat"),
         ])?;
-        let mut grouped_words = GroupedWords::new(&words);
+        let mut grouped_words = GroupedWords::new(words.clone());
 
         grouped_words.remove_guess_if_present("the");
         grouped_words.filter_possible_words(|word| word == "big" || word == "bat");

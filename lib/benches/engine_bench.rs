@@ -24,7 +24,7 @@ fn bench_guess_random_wordle_words(b: &mut Bencher) -> Result<(), WordleError> {
 
     b.iter(|| {
         let test_word = test_word_iter.next().unwrap();
-        return play_game_with_guesser(test_word, 128, RandomGuesser::new(&bank));
+        return play_game_with_guesser(test_word, 128, RandomGuesser::new(bank.clone()));
     });
 
     Ok(())
@@ -42,7 +42,7 @@ fn bench_guess_random_improved_words(b: &mut Bencher) -> Result<(), WordleError>
 
     b.iter(|| {
         let test_word = test_word_iter.next().unwrap();
-        return play_game_with_guesser(test_word, 128, RandomGuesser::new(&bank));
+        return play_game_with_guesser(test_word, 128, RandomGuesser::new(bank.clone()));
     });
 
     Ok(())
@@ -61,7 +61,8 @@ fn bench_unique_letters_improved_words(b: &mut Bencher) -> Result<(), WordleErro
 
     b.iter(|| {
         let test_word = test_word_iter.next().unwrap();
-        let guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer.clone());
+        let guesser =
+            MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank.clone(), scorer.clone());
         return play_game_with_guesser(test_word, 128, guesser);
     });
 
@@ -81,7 +82,8 @@ fn bench_located_letters_improved_words(b: &mut Bencher) -> Result<(), WordleErr
 
     b.iter(|| {
         let test_word = test_word_iter.next().unwrap();
-        let guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer.clone());
+        let guesser =
+            MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank.clone(), scorer.clone());
         return play_game_with_guesser(test_word, 128, guesser);
     });
 
@@ -101,7 +103,8 @@ fn bench_max_approximate_eliminations_improved_words(b: &mut Bencher) -> Result<
 
     b.iter(|| {
         let test_word = test_word_iter.next().unwrap();
-        let guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer.clone());
+        let guesser =
+            MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank.clone(), scorer.clone());
         return play_game_with_guesser(test_word, 128, guesser);
     });
 
@@ -116,8 +119,8 @@ fn bench_max_eliminations_improved_words_with_precompute(
     let all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
     let bank = WordBank::from_reader(all_words)?;
-    let scorer = MaxEliminationsScorer::new(&bank)?;
-    let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
+    let scorer = MaxEliminationsScorer::new(bank.clone())?;
+    let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
     base_guesser.compute_word_scores_if_unknown();
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
@@ -138,10 +141,11 @@ fn bench_max_eliminations_scorer_precompute_improved_words(
 ) -> std::result::Result<(), Box<dyn Error>> {
     let mut all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
     let bank = WordBank::from_reader(&mut all_words)?;
-    let scorer = MaxEliminationsScorer::new(&bank)?;
+    let scorer = MaxEliminationsScorer::new(bank.clone())?;
 
     b.iter(|| {
-        let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer.clone());
+        let mut guesser =
+            MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank.clone(), scorer.clone());
         guesser.compute_word_scores_if_unknown();
         guesser
     });
@@ -158,10 +162,10 @@ macro_rules! bench_max_eliminations_with_precompute_parallelisation_limit {
             let all_words = io::BufReader::new(File::open("../data/improved-words.txt")?);
 
             let bank = WordBank::from_reader(all_words)?;
-            let scorer = MaxEliminationsScorer::new(&bank)?;
+            let scorer = MaxEliminationsScorer::new(bank.clone())?;
             let mut base_guesser = MaxScoreGuesser::with_parallelisation_limit(
                 GuessFrom::AllUnguessedWords,
-                &bank,
+                bank,
                 scorer,
                 $limit,
             );
@@ -204,8 +208,8 @@ fn bench_select_top_5_guesses_all(b: &mut Bencher) -> Result<(), WordleError> {
     let all_words = io::BufReader::new(File::open("../data/wordle-words.txt")?);
 
     let bank = WordBank::from_reader(all_words)?;
-    let scorer = MaxEliminationsScorer::new(&bank)?;
-    let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
+    let scorer = MaxEliminationsScorer::new(bank.clone())?;
+    let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
     base_guesser.compute_word_scores_if_unknown();
 
     b.iter(|| {
@@ -225,8 +229,8 @@ fn bench_select_top_5_guesses_post_guess_all(b: &mut Bencher) -> Result<(), Word
     let mut test_word_iter = test_words.iter().cycle();
 
     let bank = WordBank::from_reader(all_words)?;
-    let scorer = MaxEliminationsScorer::new(&bank)?;
-    let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
+    let scorer = MaxEliminationsScorer::new(bank.clone())?;
+    let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
     base_guesser.compute_word_scores_if_unknown();
 
     let guess = "tares";
@@ -255,10 +259,10 @@ macro_rules! bench_select_top_n_parallelisation_limit {
             let mut test_word_iter = test_words.iter().cycle();
 
             let bank = WordBank::from_reader(all_words)?;
-            let scorer = MaxEliminationsScorer::new(&bank)?;
+            let scorer = MaxEliminationsScorer::new(bank.clone())?;
             let mut base_guesser = MaxScoreGuesser::with_parallelisation_limit(
                 GuessFrom::PossibleWords,
-                &bank,
+                bank,
                 scorer,
                 $limit,
             );

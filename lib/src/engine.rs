@@ -4,7 +4,6 @@ use crate::data::*;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::scorers::WordScorer;
-use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::result::Result;
 use std::sync::Arc;
@@ -34,7 +33,7 @@ pub trait Guesser {
 /// use rs_wordle_solver::play_game_with_guesser;
 ///
 /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
-/// let mut guesser = RandomGuesser::new(&bank);
+/// let mut guesser = RandomGuesser::new(bank);
 /// let result = play_game_with_guesser("def", 4, guesser.clone());
 ///
 /// assert!(matches!(result, GameResult::Success(_guesses)));
@@ -111,12 +110,13 @@ impl RandomGuesser {
     /// use rs_wordle_solver::WordBank;
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
-    /// let guesser = RandomGuesser::new(&bank);
+    /// let guesser = RandomGuesser::new(bank);
     /// ```
-    pub fn new(bank: &WordBank) -> RandomGuesser {
+    pub fn new(bank: WordBank) -> RandomGuesser {
+        let word_length = bank.word_length();
         RandomGuesser {
-            possible_words: bank.to_vec(),
-            restrictions: WordRestrictions::new(bank.word_length() as u8),
+            possible_words: bank.all_words,
+            restrictions: WordRestrictions::new(word_length as u8),
         }
     }
 }
@@ -197,22 +197,20 @@ where
     /// use rs_wordle_solver::scorers::MaxEliminationsScorer;
     ///
     /// let bank = WordBank::from_iterator(&["azz", "bzz", "czz", "abc"]).unwrap();
-    /// let scorer = MaxEliminationsScorer::new(&bank).unwrap();
-    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, &bank, scorer);
+    /// let scorer = MaxEliminationsScorer::new(bank.clone()).unwrap();
+    /// let mut guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
     ///
     /// assert_eq!(guesser.select_next_guess(), Some(Arc::from("abc")));
     /// ```
-    pub fn new(guess_mode: GuessFrom, word_bank: &WordBank, scorer: T) -> MaxScoreGuesser<T> {
-        MaxScoreGuesser {
+    pub fn new(guess_mode: GuessFrom, word_bank: WordBank, scorer: T) -> MaxScoreGuesser<T> {
+        Self::with_parallelisation_limit(
             guess_mode,
-            grouped_words: GroupedWords::new(word_bank),
-            restrictions: WordRestrictions::new(word_bank.word_length() as u8),
+            word_bank,
             scorer,
-            parallelisation_limit: std::thread::available_parallelism()
+            std::thread::available_parallelism()
                 .map(NonZeroUsize::get)
                 .unwrap_or(1),
-            word_scores: None,
-        }
+        )
     }
 
     /// Constructs a new `MaxScoreGuesser` like [`Self::new()`], but with a custom
@@ -221,14 +219,15 @@ where
     /// `std::thread::available_parallelism`.
     pub fn with_parallelisation_limit(
         guess_mode: GuessFrom,
-        word_bank: &WordBank,
+        word_bank: WordBank,
         scorer: T,
         parallelisation_limit: usize,
     ) -> MaxScoreGuesser<T> {
+        let word_length = word_bank.word_length();
         MaxScoreGuesser {
             guess_mode,
             grouped_words: GroupedWords::new(word_bank),
-            restrictions: WordRestrictions::new(word_bank.word_length() as u8),
+            restrictions: WordRestrictions::new(word_length as u8),
             scorer,
             parallelisation_limit,
             word_scores: None,
@@ -270,7 +269,7 @@ where
     /// Computes the word scores if they are not known. The result is cached into
     /// [`Self::word_scores`] until the scorer's state changes.
     pub fn compute_word_scores_if_unknown(&mut self) {
-        if None == self.word_scores {
+        if self.word_scores.is_none() {
             let words_to_score = self.words_to_score();
             let word_scores = if words_to_score.len() >= self.parallelisation_limit {
                 words_to_score
