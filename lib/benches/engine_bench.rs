@@ -121,7 +121,7 @@ fn bench_max_eliminations_improved_words_with_precompute(
     let bank = WordBank::from_reader(all_words)?;
     let scorer = MaxEliminationsScorer::new(bank.clone());
     let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
-    base_guesser.compute_word_scores_if_unknown();
+    base_guesser.compute_scores_if_unknown();
 
     let test_words: Vec<String> = test_words.lines().collect::<io::Result<Vec<String>>>()?;
     let mut test_word_iter = test_words.iter().cycle();
@@ -146,7 +146,7 @@ fn bench_max_eliminations_scorer_precompute_improved_words(
     b.iter(|| {
         let mut guesser =
             MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank.clone(), scorer.clone());
-        guesser.compute_word_scores_if_unknown();
+        guesser.compute_scores_if_unknown();
         guesser
     });
 
@@ -169,7 +169,7 @@ macro_rules! bench_max_eliminations_with_precompute_parallelisation_limit {
                 scorer,
                 $limit,
             );
-            base_guesser.compute_word_scores_if_unknown();
+            base_guesser.compute_scores_if_unknown();
 
             let test_words: Vec<String> =
                 test_words.lines().collect::<io::Result<Vec<String>>>()?;
@@ -210,7 +210,7 @@ fn bench_select_top_5_guesses_all(b: &mut Bencher) -> Result<(), WordleError> {
     let bank = WordBank::from_reader(all_words)?;
     let scorer = MaxEliminationsScorer::new(bank.clone());
     let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
-    base_guesser.compute_word_scores_if_unknown();
+    base_guesser.compute_scores_if_unknown();
 
     b.iter(|| {
         let mut guesser = base_guesser.clone();
@@ -231,7 +231,7 @@ fn bench_select_top_5_guesses_post_guess_all(b: &mut Bencher) -> Result<(), Word
     let bank = WordBank::from_reader(all_words)?;
     let scorer = MaxEliminationsScorer::new(bank.clone());
     let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
-    base_guesser.compute_word_scores_if_unknown();
+    base_guesser.compute_scores_if_unknown();
 
     let guess = "tares";
 
@@ -266,7 +266,7 @@ macro_rules! bench_select_top_n_parallelisation_limit {
                 scorer,
                 $limit,
             );
-            base_guesser.compute_word_scores_if_unknown();
+            base_guesser.compute_scores_if_unknown();
 
             let guess = "tares";
 

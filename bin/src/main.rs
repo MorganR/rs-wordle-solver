@@ -383,25 +383,25 @@ fn benchmark_words(
         GuesserImpl::UniqueLetterFrequency => {
             let scorer = MaxUniqueLetterFrequencyScorer::new(&word_bank);
             let mut guesser = MaxScoreGuesser::new(guess_from.into(), word_bank, scorer);
-            guesser.compute_word_scores_if_unknown();
+            guesser.compute_scores_if_unknown();
             benchmark_guesser(preconstruction_start, words_to_bench, guesser)
         }
         GuesserImpl::LocatedLetters => {
             let scorer = LocatedLettersScorer::new(&word_bank);
             let mut guesser = MaxScoreGuesser::new(guess_from.into(), word_bank, scorer);
-            guesser.compute_word_scores_if_unknown();
+            guesser.compute_scores_if_unknown();
             benchmark_guesser(preconstruction_start, words_to_bench, guesser)
         }
         GuesserImpl::ApproximateEliminations => {
             let scorer = MaxApproximateEliminationsScorer::new(&word_bank);
             let mut guesser = MaxScoreGuesser::new(guess_from.into(), word_bank, scorer);
-            guesser.compute_word_scores_if_unknown();
+            guesser.compute_scores_if_unknown();
             benchmark_guesser(preconstruction_start, words_to_bench, guesser)
         }
         GuesserImpl::MaxEliminations => {
             let scorer = MaxEliminationsScorer::new(word_bank.clone());
             let mut guesser = MaxScoreGuesser::new(guess_from.into(), word_bank, scorer);
-            guesser.compute_word_scores_if_unknown();
+            guesser.compute_scores_if_unknown();
             benchmark_guesser(preconstruction_start, words_to_bench, guesser)
         }
         GuesserImpl::MaxComboEliminations => {
@@ -412,7 +412,7 @@ fn benchmark_words(
             )
             .unwrap();
             let mut guesser = MaxScoreGuesser::new(guess_from.into(), word_bank, scorer);
-            guesser.compute_word_scores_if_unknown();
+            guesser.compute_scores_if_unknown();
             benchmark_guesser(preconstruction_start, words_to_bench, guesser)
         }
     }

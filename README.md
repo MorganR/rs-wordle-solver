@@ -8,6 +8,18 @@ See [the docs](https://docs.rs/rs-wordle-solver/).
 
 ## Releases
 
+  **1.0.0**
+
+  - Move score precomputation from `MaxEliminationsScorer` and `MaxComboEliminationsScorer`
+    construction into `MaxScoreGuesser`.
+  - Score precomputation is now lazy unless you call `MaxScoreGuesser::compute_scores_if_unknown`.
+  - The parallelisation limit can now be user-modified, and is applied more consistently. The
+    default limit has been lowered.
+  - Several constructors take an owned object instead of a reference where they needed to clone
+    that object anyway.
+  - `MaxScoreGuesser` tries to prioritise possible words when breaking ties.
+  - Many other breaking changes.
+
 - **0.3.0**
 
   - Add `MaxEliminationsScorer::from_first_guess_eliminations` and `::first_guess_eliminations`.

@@ -242,7 +242,7 @@ where
     /// Returns an empty vector if no known words are possible given the known restrictions imposed
     /// by previous calls to [`Self::update()`].
     pub fn select_top_n_guesses(&mut self, n: usize) -> Vec<ScoredGuess> {
-        self.compute_word_scores_if_unknown();
+        self.compute_scores_if_unknown();
         let word_scores: &Vec<i64> = self.word_scores.as_ref().unwrap();
         let mut scored_words: Vec<(&Arc<str>, i64)> = word_scores
             .iter()
@@ -271,7 +271,32 @@ where
 
     /// Computes the word scores if they are not known. The result is cached into
     /// [`Self::word_scores`] until the scorer's state changes.
-    pub fn compute_word_scores_if_unknown(&mut self) {
+    ///
+    /// This can be useful to precompute the scores for the first guess in a base guesser, and then
+    /// clone that guesser for each use.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use rs_wordle_solver::GuessFrom;
+    /// # use rs_wordle_solver::Guesser;
+    /// # use rs_wordle_solver::MaxScoreGuesser;
+    /// # use rs_wordle_solver::WordBank;
+    /// # use rs_wordle_solver::scorers::MaxEliminationsScorer;
+    ///
+    /// let bank = WordBank::from_iterator(&["azz", "bzz", "czz", "abc"]).unwrap();
+    /// let scorer = MaxEliminationsScorer::new(bank.clone());
+    /// let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
+    ///
+    /// // Precompute the first scores.
+    /// base_guesser.compute_word_scores_if_unknown();
+    ///
+    /// // Clone a new guesser for each use.
+    /// let guesser = base_guesser.clone();
+    /// ```
+    ///
+    /// You can also use the `serde` feature to serialise an instance after doing this
+    /// precomputation.
+    pub fn compute_scores_if_unknown(&mut self) {
         if self.word_scores.is_none() {
             let words_to_score = self.words_to_score();
             let word_scores = if words_to_score.len() >= self.parallelisation_limit {
@@ -321,7 +346,7 @@ where
     }
 
     fn select_next_guess(&mut self) -> Option<Arc<str>> {
-        self.compute_word_scores_if_unknown();
+        self.compute_scores_if_unknown();
         let word_scores = self.word_scores.as_ref().unwrap();
         let words_to_score = self.words_to_score();
         let (best_index, _) = if words_to_score.len() > self.parallelisation_limit {

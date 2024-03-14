@@ -386,7 +386,8 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 }
 
 /// This probabilistically calculates the expectation value for how many words will be eliminated by
-/// each guess, and chooses the word that eliminates the most other guesses.
+/// each guess, and chooses the word that eliminates the most other guesses. This scorer is
+/// moderately computationally expensive.
 ///
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
 /// results:
@@ -503,15 +504,13 @@ pub struct MaxComboEliminationsScorer {
 }
 
 impl MaxComboEliminationsScorer {
-    /// Constructs a `MaxComboEliminationsScorer`. **Be careful, this is expensive to compute!**
+    /// Constructs a `MaxComboEliminationsScorer`. **Be careful, using this scorer is**
+    /// **computationally expensive!**
     ///
-    /// Once constructed for a given set of words, this precomputation can be reused by simply
-    /// cloning a new version of the scorer for each game.
-    ///
-    /// The cost of this function scales in approximately *O*(*n*<sup>3</sup>), where *n* is the
-    /// number of words in `all_words`. `min_possible_words_for_combo` indicates the threshold at
-    /// which this scorer will only score words for the max eliminations on a single guess (i.e.
-    /// [`MaxEliminationsScorer`] behavior) instead of calculating the expected eliminations in
+    /// The cost of this scoring function scales in approximately *O*(*n*<sup>3</sup>), where *n*
+    /// is the number of words in `all_words`. `min_possible_words_for_combo` indicates the
+    /// threshold at which this scorer will only score words for the max eliminations on a single guess
+    /// (i.e. [`MaxEliminationsScorer`] behavior) instead of calculating the expected eliminations in
     /// combination with a subsequent guess.
     ///
     /// ```
