@@ -207,17 +207,19 @@ mod max_combo_eliminations_scorer {
     use super::*;
 
     fn create_scorer(bank: &WordBank) -> MaxComboEliminationsScorer {
-        MaxComboEliminationsScorer::new(bank, GuessFrom::PossibleWords, 3).unwrap()
+        MaxComboEliminationsScorer::new(bank.clone(), GuessFrom::PossibleWords, 3).unwrap()
     }
 
     test_scorer!(create_scorer);
 
     #[test]
     fn score_word_under_combo_limit() {
-        let possible_words: Vec<Arc<str>> =
-            vec![Arc::from("cod"), Arc::from("wod"), Arc::from("mod")];
+        let possible_words =
+            WordBank::from_iterator(&[Arc::from("cod"), Arc::from("wod"), Arc::from("mod")])
+                .unwrap();
         let scorer =
-            MaxComboEliminationsScorer::new(&possible_words, GuessFrom::PossibleWords, 3).unwrap();
+            MaxComboEliminationsScorer::new(possible_words.clone(), GuessFrom::PossibleWords, 3)
+                .unwrap();
 
         // Eliminates 2 in one case (correct), else eliminates 1 in the first guess and 1 more in the second.
         assert_eq!(scorer.score_word(&possible_words[0]), 1333);
@@ -227,10 +229,12 @@ mod max_combo_eliminations_scorer {
 
     #[test]
     fn score_word_over_combo_limit() {
-        let possible_words: Vec<Arc<str>> =
-            vec![Arc::from("cod"), Arc::from("wod"), Arc::from("mod")];
+        let possible_words =
+            WordBank::from_iterator(&[Arc::from("cod"), Arc::from("wod"), Arc::from("mod")])
+                .unwrap();
         let scorer =
-            MaxComboEliminationsScorer::new(&possible_words, GuessFrom::PossibleWords, 2).unwrap();
+            MaxComboEliminationsScorer::new(possible_words.clone(), GuessFrom::PossibleWords, 2)
+                .unwrap();
 
         // Eliminates 2 in one case (correct), else eliminates 1 in the first guess and 1 more in the second.
         assert_eq!(scorer.score_word(&possible_words[0]), 2033);
@@ -241,15 +245,17 @@ mod max_combo_eliminations_scorer {
 
     #[test]
     fn score_word_after_update() -> Result<(), WordleError> {
-        let possible_words: Vec<Arc<str>> = vec![
+        let possible_words = WordBank::from_iterator(&[
             Arc::from("abb"),
             Arc::from("abc"),
             Arc::from("bad"),
             Arc::from("zza"),
             Arc::from("zzz"),
-        ];
+        ])
+        .unwrap();
         let mut scorer =
-            MaxComboEliminationsScorer::new(&possible_words, GuessFrom::PossibleWords, 2).unwrap();
+            MaxComboEliminationsScorer::new(possible_words.clone(), GuessFrom::PossibleWords, 2)
+                .unwrap();
 
         let restrictions = WordRestrictions::from_result(&GuessResult {
             guess: "zza",
@@ -259,7 +265,7 @@ mod max_combo_eliminations_scorer {
                 LetterResult::PresentNotHere,
             ],
         });
-        scorer.update("zza", &restrictions, &Vec::from(&possible_words[0..3]))?;
+        scorer.update("zza", &restrictions, &possible_words[0..3])?;
         // Still possible: abb, abc, bad
 
         // Eliminates 2 in all cases.

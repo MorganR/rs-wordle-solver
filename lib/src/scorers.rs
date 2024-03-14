@@ -523,19 +523,19 @@ impl MaxComboEliminationsScorer {
     ///
     /// let bank = WordBank::from_iterator(&["abc", "def", "ghi"]).unwrap();
     /// let guess_from = GuessFrom::AllUnguessedWords;
-    /// let scorer = MaxComboEliminationsScorer::new(&bank, guess_from, 1000).unwrap();
+    /// let scorer = MaxComboEliminationsScorer::new(bank.clone(), guess_from, 1000).unwrap();
     /// let mut guesser = MaxScoreGuesser::new(guess_from, bank, scorer);
     ///
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
     pub fn new(
-        all_words: &[Arc<str>],
+        all_words: WordBank,
         guess_from: GuessFrom,
         min_possible_words_for_combo: usize,
     ) -> Result<MaxComboEliminationsScorer, WordleError> {
         let scorer = MaxComboEliminationsScorer {
             words_to_guess: all_words.iter().map(Arc::clone).collect(),
-            possible_words: all_words.iter().map(Arc::clone).collect(),
+            possible_words: all_words.all_words,
             guess_from,
             min_possible_words_for_combo,
         };

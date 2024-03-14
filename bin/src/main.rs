@@ -406,7 +406,7 @@ fn benchmark_words(
         }
         GuesserImpl::MaxComboEliminations => {
             let scorer = MaxComboEliminationsScorer::new(
-                &word_bank,
+                word_bank.clone(),
                 guess_from.into(),
                 MIN_WORD_LIMIT_FOR_COMBO,
             )
@@ -493,7 +493,7 @@ fn play_single_game(
                 guess_from.into(),
                 word_bank.clone(),
                 MaxComboEliminationsScorer::new(
-                    &word_bank,
+                    word_bank,
                     guess_from.into(),
                     MIN_WORD_LIMIT_FOR_COMBO,
                 )?,
@@ -560,7 +560,7 @@ fn play_interactive_game(
                 guess_from.into(),
                 word_bank.clone(),
                 MaxComboEliminationsScorer::new(
-                    &word_bank,
+                    word_bank,
                     guess_from.into(),
                     MIN_WORD_LIMIT_FOR_COMBO,
                 )?,
