@@ -387,10 +387,6 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// This probabilistically calculates the expectation value for how many words will be eliminated by
 /// each guess, and chooses the word that eliminates the most other guesses.
 ///
-/// This is a highly effective scoring strategy, but also quite expensive to compute. On my
-/// machine, constructing the scorer for about 4600 words takes about 0.5 seconds, but each
-/// subsequent game can be played in about 27ms if the scorer is then cloned before each game.
-///
 /// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
 /// results:
 ///
@@ -416,19 +412,11 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 #[derive(Clone)]
 pub struct MaxEliminationsScorer {
     possible_words: Vec<Arc<str>>,
-    first_expected_eliminations_per_word: HashMap<Arc<str>, f64>,
-    is_first_round: bool,
 }
 
 impl MaxEliminationsScorer {
-    /// Constructs a `MaxEliminationsScorer`. **Be careful, this is expensive to compute!**
-    ///
-    /// Once constructed for a given set of words, this precomputation can be reused by simply
-    /// cloning a new version of the scorer for each game.
-    ///
-    /// The cost of this function scales in approximately *O*(*n*<sup>2</sup>), where *n* is the
-    /// number of words.
-    ///
+    /// Constructs a `MaxEliminationsScorer`.
+
     /// ```
     /// use rs_wordle_solver::GuessFrom;
     /// use rs_wordle_solver::Guesser;
@@ -443,42 +431,9 @@ impl MaxEliminationsScorer {
     /// assert!(guesser.select_next_guess().is_some());
     /// ```
     pub fn new(all_words: &[Arc<str>]) -> Result<MaxEliminationsScorer, WordleError> {
-        let expected_eliminations_per_word: HashMap<Arc<str>, f64> = all_words
-            .par_iter()
-            .map(|word| {
-                (
-                    Arc::clone(word),
-                    compute_expected_eliminations(word, all_words.iter(), all_words.len()),
-                )
-            })
-            .collect();
         Ok(MaxEliminationsScorer {
             possible_words: all_words.to_vec(),
-            first_expected_eliminations_per_word: expected_eliminations_per_word,
-            is_first_round: true,
         })
-    }
-
-    /// Creates a [`MaxEliminationsScorer`] from a precomputed estimate of the expected number of
-    /// eliminations on the first guess.
-    pub fn from_first_guess_eliminations(
-        first_expected_eliminations_per_word: HashMap<Arc<str>, f64>,
-    ) -> Result<MaxEliminationsScorer, WordleError> {
-        Ok(MaxEliminationsScorer {
-            possible_words: first_expected_eliminations_per_word
-                .keys()
-                .map(Arc::clone)
-                .collect(),
-            first_expected_eliminations_per_word,
-            is_first_round: true,
-        })
-    }
-
-    /// Returns the precomputed estimate of the expected number of eliminations from guessing each
-    /// word on the first guess. Can be provided to [`Self::from_first_guess_eliminations()`] to
-    /// create a new instance.
-    pub fn first_guess_eliminations(&self) -> &HashMap<Arc<str>, f64> {
-        &self.first_expected_eliminations_per_word
     }
 
     fn compute_expected_eliminations(&self, word: &Arc<str>) -> f64 {
@@ -522,16 +477,10 @@ impl WordScorer for MaxEliminationsScorer {
         possible_words: &[Arc<str>],
     ) -> Result<(), WordleError> {
         self.possible_words = possible_words.to_vec();
-        self.is_first_round = false;
         Ok(())
     }
 
     fn score_word(&self, word: &Arc<str>) -> i64 {
-        if self.is_first_round {
-            if let Some(expected_elimations) = self.first_expected_eliminations_per_word.get(word) {
-                return (expected_elimations * 1000.0) as i64;
-            }
-        }
         let expected_elimations = self.compute_expected_eliminations(word);
         (expected_elimations * 1000.0) as i64
     }
@@ -547,8 +496,6 @@ pub struct MaxComboEliminationsScorer {
     words_to_guess: Vec<Arc<str>>,
     possible_words: Vec<Arc<str>>,
     guess_from: GuessFrom,
-    first_expected_eliminations_per_word: HashMap<Arc<str>, f64>,
-    is_first_round: bool,
     min_possible_words_for_combo: usize,
 }
 
@@ -587,14 +534,8 @@ impl MaxComboEliminationsScorer {
             words_to_guess: all_words.iter().map(Arc::clone).collect(),
             possible_words: all_words.iter().map(Arc::clone).collect(),
             guess_from,
-            first_expected_eliminations_per_word: HashMap::new(),
-            is_first_round: true,
             min_possible_words_for_combo,
         };
-        scorer.first_expected_eliminations_per_word = all_words
-            .par_iter()
-            .map(|word| (Arc::clone(word), scorer.compute_expected_eliminations(word)))
-            .collect();
         Ok(scorer)
     }
 
@@ -718,17 +659,10 @@ impl WordScorer for MaxComboEliminationsScorer {
                 self.words_to_guess = possible_words.to_vec();
             }
         }
-        self.is_first_round = false;
         Ok(())
     }
 
     fn score_word(&self, word: &Arc<str>) -> i64 {
-        if self.is_first_round {
-            if let Some(expected_eliminations) = self.first_expected_eliminations_per_word.get(word)
-            {
-                return (expected_eliminations * 1000.0) as i64;
-            }
-        }
         let expected_eliminations = self.compute_expected_eliminations(word);
         (expected_eliminations * 1000.0) as i64
     }

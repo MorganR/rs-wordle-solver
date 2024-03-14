@@ -126,7 +126,7 @@ fn max_score_guesser_update_guess_result_modifies_next_guess() -> Result<(), Wor
 fn max_score_guesser_select_top_n_guesses_no_words() -> Result<(), WordleError> {
     let bank = WordBank::from_iterator(&Vec::<Arc<str>>::new())?;
     let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
-    let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     assert_eq!(guesser.select_top_n_guesses(5), vec![]);
     Ok(())
@@ -136,7 +136,7 @@ fn max_score_guesser_select_top_n_guesses_no_words() -> Result<(), WordleError> 
 fn max_score_guesser_select_top_n_guesses() -> Result<(), WordleError> {
     let bank = WordBank::from_iterator(vec!["xxxx", "aaaa", "baac", "xabc"])?;
     let scorer = MaxUniqueLetterFrequencyScorer::new(&bank);
-    let guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
+    let mut guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, &bank, scorer);
 
     assert_eq!(
         guesser.select_top_n_guesses(3),

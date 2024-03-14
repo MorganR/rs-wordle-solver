@@ -4,6 +4,7 @@ use crate::data::*;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::scorers::WordScorer;
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::result::Result;
 use std::sync::Arc;
@@ -172,6 +173,7 @@ where
     restrictions: WordRestrictions,
     scorer: T,
     parallelisation_limit: usize,
+    word_scores: Option<Vec<i64>>,
 }
 
 impl<T> MaxScoreGuesser<T>
@@ -209,6 +211,7 @@ where
             parallelisation_limit: std::thread::available_parallelism()
                 .map(NonZeroUsize::get)
                 .unwrap_or(1),
+            word_scores: None,
         }
     }
 
@@ -228,6 +231,7 @@ where
             restrictions: WordRestrictions::new(word_bank.word_length() as u8),
             scorer,
             parallelisation_limit,
+            word_scores: None,
         }
     }
 
@@ -235,39 +239,64 @@ where
     ///
     /// Returns an empty vector if no known words are possible given the known restrictions imposed
     /// by previous calls to [`Self::update()`].
-    pub fn select_top_n_guesses(&self, n: usize) -> Vec<ScoredGuess> {
-        let words_to_score = match self.guess_mode {
+    pub fn select_top_n_guesses(&mut self, n: usize) -> Vec<ScoredGuess> {
+        self.compute_word_scores_if_unknown();
+        let word_scores: &Vec<i64> = self.word_scores.as_ref().unwrap();
+        let mut scored_words: Vec<(&Arc<str>, i64)> = word_scores
+            .iter()
+            .zip(self.words_to_score().iter())
+            .map(|(score, word)| (word, *score))
+            .collect();
+
+        if scored_words.len() >= self.parallelisation_limit {
+            // Use a stable sort, because possible words come before impossible words, and we want
+            // to prioritise possible words.
+            scored_words.par_sort_by_key(|(_, score)| -score);
+        } else {
+            // Use a stable sort, because possible words come before impossible words, and we want
+            // to prioritise possible words.
+            scored_words.sort_by_key(|(_, score)| -score);
+        };
+        scored_words
+            .iter()
+            .take(n)
+            .map(|(word, score)| ScoredGuess {
+                score: *score,
+                guess: Arc::clone(*word),
+            })
+            .collect()
+    }
+
+    /// Computes the word scores if they are not known. The result is cached into
+    /// [`Self::word_scores`] until the scorer's state changes.
+    pub fn compute_word_scores_if_unknown(&mut self) {
+        if None == self.word_scores {
+            let words_to_score = self.words_to_score();
+            let word_scores = if words_to_score.len() >= self.parallelisation_limit {
+                words_to_score
+                    .par_iter()
+                    .map(|word| self.scorer.score_word(word))
+                    .collect()
+            } else {
+                words_to_score
+                    .iter()
+                    .map(|word| self.scorer.score_word(word))
+                    .collect()
+            };
+            self.word_scores = Some(word_scores);
+        }
+    }
+
+    /// Retrieves the words that need scoring, in the same order as the
+    fn words_to_score(&self) -> &[Arc<str>] {
+        match self.guess_mode {
             // Only score possible words if we're down to the last two guesses.
             _ if self.grouped_words.num_possible_words() <= 2 => {
                 self.grouped_words.possible_words()
             }
             GuessFrom::AllUnguessedWords => self.grouped_words.unguessed_words(),
             GuessFrom::PossibleWords => self.grouped_words.possible_words(),
-        };
-
-        let scored_words = if words_to_score.len() >= self.parallelisation_limit {
-            let mut scored_words: Vec<(&Arc<str>, i64)> = words_to_score
-                .par_iter()
-                .map(|word| (word, self.scorer.score_word(word)))
-                .collect();
-            scored_words.par_sort_by_key(|(_, score)| -score);
-            scored_words
-        } else {
-            let mut scored_words: Vec<(&Arc<str>, i64)> = words_to_score
-                .iter()
-                .map(|word| (word, self.scorer.score_word(word)))
-                .collect();
-            scored_words.sort_by_key(|(_, score)| -score);
-            scored_words
-        };
-        scored_words
-            .into_iter()
-            .take(n)
-            .map(|(word, score)| ScoredGuess {
-                guess: Arc::clone(word),
-                score,
-            })
-            .collect()
+        }
     }
 }
 
@@ -276,6 +305,7 @@ where
     T: WordScorer + Clone + Sync,
 {
     fn update(&mut self, result: &GuessResult) -> Result<(), WordleError> {
+        self.word_scores = None;
         self.grouped_words.remove_guess_if_present(result.guess);
         self.restrictions.update(result)?;
         self.grouped_words
@@ -289,62 +319,39 @@ where
     }
 
     fn select_next_guess(&mut self) -> Option<Arc<str>> {
-        if self.guess_mode == GuessFrom::AllUnguessedWords
-            && self.grouped_words.num_possible_words() > 2
-        {
-            let unguessed_words = self.grouped_words.unguessed_words();
-            let (_, best_index) = if unguessed_words.len() > self.parallelisation_limit {
-                unguessed_words
-                    .par_iter()
-                    .enumerate()
-                    .map(|(i, word)| (self.scorer.score_word(word), i))
-                    .reduce(
-                        || (i64::MIN, usize::MAX),
-                        |(best_score, best_index), (score, index)| {
-                            if score > best_score {
-                                return (score, index);
-                            }
-                            // Use the lower index, because it is more likely to be a possible word.
-                            if score == best_score && index < best_index {
-                                return (score, index);
-                            }
-                            (best_score, best_index)
-                        },
-                    )
-            } else {
-                let mut best_score = i64::MIN;
-                let mut best_index = 0;
-                unguessed_words.iter().enumerate().for_each(|(i, word)| {
-                    let score = self.scorer.score_word(word);
-                    if score > best_score {
-                        best_score = score;
-                        best_index = i;
+        self.compute_word_scores_if_unknown();
+        let word_scores = self.word_scores.as_ref().unwrap();
+        let words_to_score = self.words_to_score();
+        let (best_index, _) = if words_to_score.len() > self.parallelisation_limit {
+            word_scores.par_iter().enumerate().reduce(
+                || (usize::MAX, &i64::MIN),
+                |(best_index, best_score), (index, score)| {
+                    if *score > *best_score {
+                        return (index, score);
                     }
-                });
-                (best_score, best_index)
-            };
-            if best_index > self.grouped_words.num_unguessed_words() {
-                return None;
-            } else {
-                return Some(Arc::clone(&unguessed_words[best_index]));
-            }
+                    // Use the lower index, because it is more likely to be a possible word.
+                    if *score == *best_score && index < best_index {
+                        return (index, score);
+                    }
+                    (best_index, best_score)
+                },
+            )
+        } else {
+            let mut best_score = &i64::MIN;
+            let mut best_index = usize::MAX;
+            word_scores.iter().enumerate().for_each(|(i, score)| {
+                if *score > *best_score {
+                    best_score = score;
+                    best_index = i;
+                }
+            });
+            (best_index, best_score)
+        };
+        if best_index > words_to_score.len() {
+            None
+        } else {
+            Some(Arc::clone(&words_to_score[best_index]))
         }
-
-        if self.grouped_words.num_possible_words() >= self.parallelisation_limit {
-            return self
-                .grouped_words
-                .possible_words()
-                .par_iter()
-                .max_by_key(|word| self.scorer.score_word(word))
-                .map(Arc::clone);
-        }
-
-        return self
-            .grouped_words
-            .possible_words()
-            .iter()
-            .max_by_key(|word| self.scorer.score_word(word))
-            .map(Arc::clone);
     }
 
     fn possible_words(&self) -> &[Arc<str>] {
