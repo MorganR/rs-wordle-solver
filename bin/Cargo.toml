@@ -7,5 +7,4 @@ edition.workspace = true
 
 [dependencies]
 clap = { version = "3.0.13", features = ["derive"]}
-dyn-clone = "1.0.17"
 rs-wordle-solver = { path = "../lib" }

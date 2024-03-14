@@ -4,13 +4,12 @@ use crate::data::*;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::scorers::WordScorer;
-use dyn_clone::DynClone;
 use std::num::NonZeroUsize;
 use std::result::Result;
 use std::sync::Arc;
 
 /// Guesses words in order to solve a single Wordle.
-pub trait Guesser: DynClone {
+pub trait Guesser {
     /// Updates this guesser with information about a word.
     fn update(&mut self, result: &GuessResult) -> Result<(), WordleError>;
 
