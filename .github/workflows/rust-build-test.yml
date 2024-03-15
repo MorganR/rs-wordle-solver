@@ -1,4 +1,4 @@
-name: Rust (lib)
+name: Rust (build & test)
 
 on:
   push:
@@ -17,6 +17,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --verbose --manifest-path=lib/Cargo.toml
+      run: cargo build --workspace
     - name: Run tests
-      run: cargo test --verbose --manifest-path=lib/Cargo.toml
+      run: cargo test --workspace
