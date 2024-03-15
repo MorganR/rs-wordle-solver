@@ -288,7 +288,7 @@ where
     /// let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer);
     ///
     /// // Precompute the first scores.
-    /// base_guesser.compute_word_scores_if_unknown();
+    /// base_guesser.compute_scores_if_unknown();
     ///
     /// // Clone a new guesser for each use.
     /// let guesser = base_guesser.clone();
