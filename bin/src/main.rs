@@ -7,7 +7,7 @@ use std::io;
 use std::io::BufRead;
 use std::result::Result;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 const MIN_WORD_LIMIT_FOR_COMBO: usize = 256;
 
@@ -126,6 +126,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+struct TimedGameResult {
+    duration: Duration,
+    game_result: GameResult,
+}
+
 fn run_benchmark(
     word_bank: WordBank,
     guesser_impl: GuesserImpl,
@@ -171,7 +176,7 @@ fn run_benchmark(
     let mut possible_words_count_1_from_end = vec![0; 13];
     let mut possible_words_count_2_from_end = vec![0; 13];
     let mut possible_words_count_3_from_end = vec![0; 13];
-    for result in results {
+    for result in results.iter().map(|timed_result| &timed_result.game_result) {
         if let GameResult::Success(data) = result {
             num_guesses_per_game.push(data.turns.len() as u32);
             first_guess = data.turns[0].guess.clone();
@@ -340,6 +345,26 @@ fn run_benchmark(
         average, std_dev
     );
 
+    let duration_sum: Duration = results
+        .iter()
+        .map(|timed_result| timed_result.duration)
+        .sum();
+    let avg_duration: Duration = duration_sum / results.len() as u32;
+    let std_dev_duration_us: f64 = (results
+        .iter()
+        .map(|timed_result| {
+            (timed_result.duration.as_micros() as i128 - avg_duration.as_micros() as i128).pow(2)
+                as f64
+        })
+        .sum::<f64>()
+        / results.len() as f64)
+        .sqrt();
+    println!(
+        "**Average duration per game:** {:.3}ms +/- {:.3}ms",
+        avg_duration.as_micros() as f64 / 1000.0,
+        std_dev_duration_us / 1000.0
+    );
+
     Ok(())
 }
 
@@ -347,13 +372,14 @@ fn benchmark_guesser<G: Guesser + Clone>(
     preconstruction_start: Instant,
     words_to_bench: &[Arc<str>],
     guesser: G,
-) -> Vec<GameResult> {
+) -> Vec<TimedGameResult> {
     println!(
         "Scorer preconstruction took: {}s",
         preconstruction_start.elapsed().as_secs_f64()
     );
-    let mut results: Vec<GameResult> = Vec::with_capacity(words_to_bench.len());
+    let mut results: Vec<TimedGameResult> = Vec::with_capacity(words_to_bench.len());
     for word in words_to_bench.iter() {
+        let start = Instant::now();
         let max_num_guesses = 128;
         let result = play_game_with_guesser(word, max_num_guesses, guesser.clone());
         if let GameResult::Success(data) = &result {
@@ -361,7 +387,10 @@ fn benchmark_guesser<G: Guesser + Clone>(
         } else {
             panic!("Failed to guess word: {}. Error: {:?}", word, result);
         }
-        results.push(result);
+        results.push(TimedGameResult {
+            duration: start.elapsed(),
+            game_result: result,
+        });
     }
     results
 }
@@ -371,7 +400,7 @@ fn benchmark_words(
     all_words: Arc<Vec<Arc<str>>>,
     guesser_impl: GuesserImpl,
     guess_from: GuessFrom,
-) -> Vec<GameResult> {
+) -> Vec<TimedGameResult> {
     let word_bank: WordBank = WordBank::from_iterator(all_words.iter()).unwrap();
     let preconstruction_start = Instant::now();
     match guesser_impl {
