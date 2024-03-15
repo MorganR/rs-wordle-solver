@@ -44,28 +44,7 @@ pub trait WordScorer {
 /// Scores words by the number of unique words that have the same letter (in any location), summed
 /// across each unique and not-yet guessed letter in the word.
 ///
-/// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
-/// results:
-///
-/// |Num guesses|Num games (Guess from: `PossibleWords`)|Num games (Guess from: `AllUnguessedWords`)|
-/// |-----------|---------|---------------|
-/// |1|1|1|
-/// |2|137|32|
-/// |3|1264|1019|
-/// |4|1831|2227|
-/// |5|829|1054|
-/// |6|321|228|
-/// |7|129|36
-/// |8|57|5|
-/// |9|26|0|
-/// |10|6|0|
-/// |11|1|0|
-///
-/// **Average guesses:**
-///
-/// Guess from `PossibleWords`: 4.16 +/- 1.22
-///
-/// Guess from `AllUnguessedWords`: 4.12 +/- 0.87
+/// See the [README](https://github.com/MorganR/rs-wordle-solver/blob/main/README.md) for benchmarks.
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxUniqueLetterFrequencyScorer {
@@ -154,29 +133,7 @@ impl WordScorer for MaxUniqueLetterFrequencyScorer {
 ///
 ///         * 1 point for every possible word with this letter in the same place.
 ///
-/// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
-/// results:
-///
-/// |Num guesses|Num games (Guess from: `PossibleWords`)|Num games (Guess from: `AllUnguessedWords`)|
-/// |-----------|---------|---------------|
-/// |1|1|1|
-/// |2|180|114|
-/// |3|1442|1558|
-/// |4|1838|2023|
-/// |5|722|633|
-/// |6|259|180|
-/// |7|101|62|
-/// |8|41|22|
-/// |9|13|7|
-/// |10|3|2|
-/// |11|1|0|
-/// |12|1|0|
-///
-/// **Average guesses:**
-///
-/// Guess from `PossibleWords`: 4.00 +/- 1.15
-///
-/// Guess from `AllUnguessedWords`: 3.90 +/- 0.99
+/// See the [README](https://github.com/MorganR/rs-wordle-solver/blob/main/README.md) for benchmarks.
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LocatedLettersScorer {
@@ -275,29 +232,7 @@ impl WordScorer for LocatedLettersScorer {
 /// [`MaxEliminationsScorer`]. Ignoring `MaxEliminationsScorer`'s precomputation on construction,
 /// this approximate scorer is still about 10x faster.
 ///
-/// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
-/// results:
-///
-/// |Num guesses|Num games (Guess from: `PossibleWords`)|Num games (Guess from: `AllUnguessedWords`)|
-/// |-----------|---------|---------------|
-/// |1|1|1|
-/// |2|180|72|
-/// |3|1415|1303|
-/// |4|1843|2507|
-/// |5|734|664|
-/// |6|262|52|
-/// |7|104|3|
-/// |8|41|0|
-/// |9|14|0|
-/// |10|6|0|
-/// |11|1|0|
-/// |12|1|0|
-///
-/// **Average guesses:**
-///
-/// Guess from `PossibleWords`: 4.02 +/- 1.16
-///
-/// Guess from `AllUnguessedWords`: 3.85 +/- 0.72
+/// See the [README](https://github.com/MorganR/rs-wordle-solver/blob/main/README.md) for benchmarks.
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxApproximateEliminationsScorer {
@@ -389,28 +324,7 @@ impl WordScorer for MaxApproximateEliminationsScorer {
 /// each guess, and chooses the word that eliminates the most other guesses. This scorer is
 /// moderately computationally expensive.
 ///
-/// When benchmarked against the 4602 words in `data/improved-words.txt`, this has the following
-/// results:
-///
-/// |Num guesses|Num games (Guess from: `PossibleWords`)|Num games (Guess from: `AllUnguessedWords`)|
-/// |-----------|---------|---------------|
-/// |1|1|1|
-/// |2|180|53|
-/// |3|1452|1426|
-/// |4|1942|2635|
-/// |5|666|468|
-/// |6|220|19|
-/// |7|93|0|
-/// |8|33|0|
-/// |9|10|0|
-/// |10|4|0|
-/// |11|1|0|
-///
-/// **Average guesses:**
-///
-/// Guess from `PossibleWords`: 3.95 +/- 1.10
-///
-/// Guess from `AllUnguessedWords`: 3.78 +/- 0.65
+/// See the [README](https://github.com/MorganR/rs-wordle-solver/blob/main/README.md) for benchmarks.
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxEliminationsScorer {
@@ -493,7 +407,9 @@ impl WordScorer for MaxEliminationsScorer {
 /// the next two guesses, and chooses the word that maximizes that.
 ///
 /// This is very expensive to run, and seems to perform worse than [`MaxEliminationsScorer`], so you
-/// should probably use that instead. Constructing this solver with 4602 words takes almost 6 hours.
+/// should probably use that instead. Constructing this solver with 4602 words takes a few minutes.
+///
+/// See the [README](https://github.com/MorganR/rs-wordle-solver/blob/main/README.md) for benchmarks.
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxComboEliminationsScorer {

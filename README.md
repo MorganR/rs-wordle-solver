@@ -90,36 +90,40 @@ unique letters that have not yet been guessed.
 
 **GuessFrom::PossibleWords**
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 137       |
-| 3           | 1264      |
-| 4           | 1831      |
-| 5           | 829       |
-| 6           | 321       |
-| 7           | 129       |
-| 8           | 57        |
-| 9           | 26        |
-| 10          | 6         |
-| 11          | 1         |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|137|
+|3|1248|
+|4|1831|
+|5|830|
+|6|321|
+|7|135|
+|8|63|
+|9|26|
+|10|7|
+|11|1|
+|12|1|
+|13|1|
 
-**Average number of guesses:** 4.16 +/- 1.22
+**Average number of guesses:** 4.17 +/- 1.24
+**Average duration per game:** 0.224ms +/- 0.058ms
 
 **GuessFrom::AllUnguessedWords**
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 32        |
-| 3           | 1019      |
-| 4           | 2227      |
-| 5           | 1054      |
-| 6           | 228       |
-| 7           | 36        |
-| 8           | 5         |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|32|
+|3|1045|
+|4|2268|
+|5|1037|
+|6|194|
+|7|23|
+|8|2|
 
-**Average number of guesses:** 4.12 +/- 0.87
+**Average number of guesses:** 4.08 +/- 0.83
+**Average duration per game:** 0.491ms +/- 0.114ms
 
 ### LocatedLettersScorer
 
@@ -145,39 +149,43 @@ For each letter, score:
 
 **GuessFrom::PossibleWords**
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 180       |
-| 3           | 1442      |
-| 4           | 1838      |
-| 5           | 722       |
-| 6           | 259       |
-| 7           | 101       |
-| 8           | 41        |
-| 9           | 13        |
-| 10          | 3         |
-| 11          | 1         |
-| 12          | 1         |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|180|
+|3|1448|
+|4|1836|
+|5|720|
+|6|255|
+|7|100|
+|8|44|
+|9|12|
+|10|4|
+|11|1|
+|12|1|
 
 **Average number of guesses:** 4.00 +/- 1.15
+**Average duration per game:** 0.211ms +/- 0.040ms
 
 **GuessFrom::AllUnguessedWords**
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 114       |
-| 3           | 1558      |
-| 4           | 2023      |
-| 5           | 633       |
-| 6           | 180       |
-| 7           | 62        |
-| 8           | 22        |
-| 9           | 7         |
-| 10          | 2         |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|128|
+|3|1599|
+|4|1924|
+|5|638|
+|6|199|
+|7|75|
+|8|25|
+|9|9|
+|10|2|
+|11|1|
+|12|1|
 
-**Average number of guesses:** 3.90 +/- 0.99
+**Average number of guesses:** 3.91 +/- 1.04
+**Average duration per game:** 0.491ms +/- 0.117ms
 
 ### MaxApproximateEliminationsScorer
 
@@ -200,88 +208,79 @@ and therefore less effective, than using the precise counts computed by `MaxElim
 
 **GuessFrom::PossibleWords**
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 180       |
-| 3           | 1415      |
-| 4           | 1843      |
-| 5           | 734       |
-| 6           | 262       |
-| 7           | 104       |
-| 8           | 41        |
-| 9           | 14        |
-| 10          | 6         |
-| 11          | 1         |
-| 12          | 1         |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|180|
+|3|1430|
+|4|1846|
+|5|721|
+|6|258|
+|7|105|
+|8|41|
+|9|13|
+|10|5|
+|11|1|
+|12|1|
 
-**Average number of guesses:** 4.02 +/- 1.16
+**Average number of guesses:** 4.01 +/- 1.15
+**Average duration per game:** 0.210ms +/- 0.041ms
 
 **GuessFrom::AllUnguessedWords**
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 72        |
-| 3           | 1303      |
-| 4           | 2507      |
-| 5           | 664       |
-| 6           | 52        |
-| 7           | 3         |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|73|
+|3|1331|
+|4|2486|
+|5|655|
+|6|53|
+|7|3|
 
 **Average number of guesses:** 3.85 +/- 0.72
+**Average duration per game:** 0.503ms +/- 0.106ms
 
 ### MaxEliminationsScorer
 
 This probabilistically calculates the expectation value for how many words will be eliminated by
 each guess, and chooses the word that eliminates the most other guesses. This is relatively
 expensive to compute, so it precomputes as much as possible when the scorer is first created. On my
-machine, constructing the scorer with the improved-words list takes about 350ms, but this
-enables each subsequent game to be played in about 27ms.
+machine, constructing the scorer with the improved-words list takes about 120ms, but this
+enables each subsequent game to be played in about 4ms.
 
 **GuessFrom::PossibleWords**
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 180       |
-| 3           | 1452      |
-| 4           | 1942      |
-| 5           | 666       |
-| 6           | 220       |
-| 7           | 93        |
-| 8           | 33        |
-| 9           | 10        |
-| 10          | 4         |
-| 11          | 1         |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|180|
+|3|1476|
+|4|1928|
+|5|653|
+|6|223|
+|7|93|
+|8|33|
+|9|10|
+|10|4|
+|11|1|
 
 **Average number of guesses:** 3.95 +/- 1.10
+**Average duration per game:** 0.342ms +/- 0.190ms
 
 **GuessFrom::AllUnguessedWords**
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 53        |
-| 3           | 1426      |
-| 4           | 2635      |
-| 5           | 468       |
-| 6           | 19        |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|73|
+|3|1616|
+|4|2474|
+|5|419|
+|6|19|
 
-**Average number of guesses:** 3.78 +/- 0.65
-
-When benchmarked against the wordle answers using the improved-words list as a word bank, the
-results are:
-
-| Num guesses | Num games |
-| ----------- | --------- |
-| 2           | 23        |
-| 3           | 777       |
-| 4           | 1364      |
-| 5           | 148       |
-| 6           | 3         |
-
-**Average number of guesses:** 3.71 +/- 0.60 (time taken: 20.6 seconds)
+**Average number of guesses:** 3.72 +/- 0.67
+**Average duration per game:** 3.578ms +/- 2.608ms
 
 ### MaxComboEliminationsScorer
 
@@ -296,39 +295,41 @@ differently from choosing the best individual word per round, as is done in
 `MaxEliminationsScorer`.
 
 This is **extremely expensive** to compute, as it scales in approximately _O_(_n_<super>3</super>)
-where `n` is the number of words in the word bank. Similar to `MaxEliminationScorer`, it
-precomputes the first guess, which takes about _40 minutes_ for ~4600 words, and solving a single word then takes about 10 seconds on average (with wide variance, largely depending on how many words were eliminated, and what `combo_limit` you are using).
+where `n` is the number of words in the word bank. Computing the scores for the first guess with
+4600 words takes about 2.5 minutes using `PossibleWords`, and 14 minutes using `AllPossibleWords`.
 
-**Combo limit: 256** and **GuessFrom::AllUnguessedWords**:
+**Combo limit: 256** and **GuessFrom::PossibleWords**:
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 148       |
-| 3           | 1500      |
-| 4           | 2041      |
-| 5           | 619       |
-| 6           | 180       |
-| 7           | 73        |
-| 8           | 27        |
-| 9           | 9         |
-| 10          | 2         |
-| 11          | 2         |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|148|
+|3|1508|
+|4|2034|
+|5|617|
+|6|179|
+|7|75|
+|8|27|
+|9|9|
+|10|2|
+|11|2|
 
 **Average number of guesses:** 3.91 +/- 1.03
+**Average duration per game:** 40.549ms +/- 84.745ms
 
 **Combo limit: 256** and **GuessFrom::AllUnguessedWords**:
 
-| Num guesses | Num games |
-| ----------- | --------- |
-| 1           | 1         |
-| 2           | 59        |
-| 3           | 1392      |
-| 4           | 2753      |
-| 5           | 372       |
-| 6           | 25        |
+|Num guesses|Num games|
+|-----------|---------|
+|1|1|
+|2|83|
+|3|1587|
+|4|2556|
+|5|353|
+|6|22|
 
-**Average number of guesses:** 3.76 +/- 0.63 (time taken: 13 hours 10 minutes)
+**Average number of guesses:** 3.70 +/- 0.65
+**Average duration per game:** 6111.912ms +/- 23946.495ms
 
 ## Speed benchmarks
 
