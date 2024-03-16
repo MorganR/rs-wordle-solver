@@ -8,40 +8,40 @@ See [the docs](https://docs.rs/rs-wordle-solver/).
 
 ## Releases
 
-  **1.0.0**
+**1.0.0**
 
-  - Move score precomputation from `MaxEliminationsScorer` and `MaxComboEliminationsScorer`
-    construction into `MaxScoreGuesser`.
-  - Score precomputation is now lazy unless you call `MaxScoreGuesser::compute_scores_if_unknown`.
-  - The parallelisation limit can now be user-modified, and is applied more consistently. The
-    default limit has been lowered.
-  - Several constructors take an owned object instead of a reference where they needed to clone
-    that object anyway.
-  - `MaxScoreGuesser` tries to prioritise possible words when breaking ties.
-  - Many other breaking changes.
+- Move score precomputation from `MaxEliminationsScorer` and `MaxComboEliminationsScorer`
+  construction into `MaxScoreGuesser`.
+- Score precomputation is now lazy unless you call `MaxScoreGuesser::compute_scores_if_unknown`.
+- The parallelisation limit can now be user-modified, and is applied more consistently. The
+  default limit has been lowered.
+- Several constructors take an owned object instead of a reference where they needed to clone
+  that object anyway.
+- `MaxScoreGuesser` tries to prioritise possible words when breaking ties.
+- Many other breaking changes.
 
-- **0.3.0**
+**0.3.0**
 
-  - Add `MaxEliminationsScorer::from_first_guess_eliminations` and `::first_guess_eliminations`.
-    This is especially useful for efficiently (de)serializing the important bits of this struct.
-  - Align `WordBank::from_reader` and `::from_iterator` implementations.
+- Add `MaxEliminationsScorer::from_first_guess_eliminations` and `::first_guess_eliminations`.
+  This is especially useful for efficiently (de)serializing the important bits of this struct.
+- Align `WordBank::from_reader` and `::from_iterator` implementations.
 
-- **0.2.0**
+**0.2.0**
 
-  - Enable parallelization with [`Rayon`](https://docs.rs/rayon/1.7.0/rayon/index.html)
+- Enable parallelization with [`Rayon`](https://docs.rs/rayon/1.7.0/rayon/index.html)
 
-    - Parallelize key parts of `MaxEliminationsScorer::new`
-    - Parallelize key parts of `MaxComboEliminationsScorer::new`
-    - Parallelize `MaxScoreGuesser::select_next_guess` and `::select_top_n_guesses`
+  - Parallelize key parts of `MaxEliminationsScorer::new`
+  - Parallelize key parts of `MaxComboEliminationsScorer::new`
+  - Parallelize `MaxScoreGuesser::select_next_guess` and `::select_top_n_guesses`
 
-  - Make `WordScorer::score_word` take `&self` instead of `&mut self`
-  - Fix bugs in `MaxComboEliminationsScorer` to improve its results
+- Make `WordScorer::score_word` take `&self` instead of `&mut self`
+- Fix bugs in `MaxComboEliminationsScorer` to improve its results
 
 ## Solve efficiency benchmarks
 
 Different guessing algorithms have been benchmarked against a few word lists:
 
-- `wordle-answers.txt`: this list is the all answer words from
+- `wordle-answers.txt`: this list is all the answer words from
   [Wordle](https://www.nytimes.com/games/wordle/index.html) before it was purchased by the New
   York Times.
 
