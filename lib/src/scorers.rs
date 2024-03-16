@@ -24,10 +24,11 @@ use std::sync::Arc;
 ///
 /// | Scorer                             |[`GuessFrom::PossibleWords`]|[`GuessFrom::AllUnguessedWords`]|
 /// |------------------------------------|----------------------------|--------------------------------|
-/// |[`MaxEliminationsScorer`]           |               3.95 +/- 1.10|                   3.78 +/- 0.65|
-/// |[`MaxApproximateEliminationsScorer`]|               4.02 +/- 1.16|                   3.85 +/- 0.72|
-/// |[`LocatedLettersScorer`]            |               4.00 +/- 1.15|                   3.90 +/- 0.99|
-/// |[`MaxUniqueLetterFrequencyScorer`]  |               4.16 +/- 1.22|                   4.12 +/- 0.87|
+/// |[`MaxComboEliminationsScorer`]      |               3.91 +/- 1.03|                   3.70 +/- 0.65|
+/// |[`MaxEliminationsScorer`]           |               3.95 +/- 1.10|                   3.72 +/- 0.67|
+/// |[`MaxApproximateEliminationsScorer`]|               4.01 +/- 1.15|                   3.85 +/- 0.72|
+/// |[`LocatedLettersScorer`]            |               4.00 +/- 1.15|                   3.91 +/- 1.04|
+/// |[`MaxUniqueLetterFrequencyScorer`]  |               4.17 +/- 1.24|                   4.08 +/- 0.83|
 pub trait WordScorer {
     /// Updates the scorer with the latest guess, the updated set of restrictions, and the updated
     /// list of possible words.
@@ -406,10 +407,12 @@ impl WordScorer for MaxEliminationsScorer {
 /// This probabilistically calculates the expectation value for how many words will be eliminated by
 /// the next two guesses, and chooses the word that maximizes that.
 ///
-/// This is very expensive to run, and seems to perform worse than [`MaxEliminationsScorer`], so you
-/// should probably use that instead. Constructing this solver with 4602 words takes a few minutes.
+/// This is very expensive to run, and does not perform significantly better than
+/// [`MaxEliminationsScorer`], so you should probably use that instead. Constructing this solver
+/// with 4602 words takes a few minutes.
 ///
-/// See the [README](https://github.com/MorganR/rs-wordle-solver/blob/main/README.md) for benchmarks.
+/// See the [README](https://github.com/MorganR/rs-wordle-solver/blob/main/README.md) for
+/// benchmarks.
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MaxComboEliminationsScorer {
