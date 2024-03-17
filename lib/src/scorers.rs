@@ -168,7 +168,7 @@ impl LocatedLettersScorer {
 }
 
 impl WordScorer for LocatedLettersScorer {
-    fn update<'a>(
+    fn update(
         &mut self,
         _last_guess: &str,
         restrictions: &WordRestrictions,
@@ -306,7 +306,7 @@ impl MaxApproximateEliminationsScorer {
 }
 
 impl WordScorer for MaxApproximateEliminationsScorer {
-    fn update<'a>(
+    fn update(
         &mut self,
         _last_guess: &str,
         _restrictions: &WordRestrictions,

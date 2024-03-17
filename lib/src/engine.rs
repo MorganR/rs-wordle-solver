@@ -4,6 +4,7 @@ use crate::data::*;
 use crate::restrictions::WordRestrictions;
 use crate::results::*;
 use crate::scorers::WordScorer;
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::result::Result;
 use std::sync::Arc;
@@ -206,35 +207,59 @@ where
     /// assert_eq!(guesser.select_next_guess(), Some(Arc::from("abc")));
     /// ```
     pub fn new(guess_mode: GuessFrom, word_bank: WordBank, scorer: T) -> MaxScoreGuesser<T> {
-        Self::with_parallelisation_limit(
-            guess_mode,
-            word_bank,
-            scorer,
-            std::thread::available_parallelism()
-                .map(NonZeroUsize::get)
-                .unwrap_or(1),
-        )
-    }
-
-    /// Constructs a new `MaxScoreGuesser` like [`Self::new()`], but with a custom
-    /// `parallelisation_limit`. Various internal operations may be parallelised if operating on
-    /// lists greater than this limit. The default setting is the result of
-    /// `std::thread::available_parallelism`.
-    pub fn with_parallelisation_limit(
-        guess_mode: GuessFrom,
-        word_bank: WordBank,
-        scorer: T,
-        parallelisation_limit: usize,
-    ) -> MaxScoreGuesser<T> {
         let word_length = word_bank.word_length();
-        MaxScoreGuesser {
+        Self {
             guess_mode,
             grouped_words: GroupedWords::new(word_bank),
             restrictions: WordRestrictions::new(word_length as u8),
             scorer,
-            parallelisation_limit,
+            parallelisation_limit: std::thread::available_parallelism()
+                .map(NonZeroUsize::get)
+                .unwrap_or(1),
             word_scores: None,
         }
+    }
+
+    /// Sets the parallelisation limit. Various internal operations may be parallelised if operating
+    /// on lists larger than this limit. The default setting is the result of
+    /// `std::thread::available_parallelism`.
+    pub fn with_parallelisation_limit(mut self, parallelisation_limit: usize) -> Self {
+        self.parallelisation_limit = parallelisation_limit;
+        self
+    }
+
+    /// Sets the precomputed word scores based on the provided map. If the map is missing scores
+    /// for any words, they will be computed to fill the gaps. These scores will be used until the
+    /// next call to [`Self::update()`].
+    ///
+    /// This is handy to initialise the guesser with precomputed scores for the first guess. You
+    /// can retrieve this data by calling [`Self::get_or_compute_scores()`] on a newly constructed
+    /// guesser.
+    pub fn with_word_scores(mut self, scores: &HashMap<Arc<str>, i64>) -> Self {
+        let words_to_score = self.words_to_score();
+        let ordered_scores: Vec<i64> = words_to_score
+            .iter()
+            .map(|word| {
+                scores
+                    .get(word)
+                    .copied()
+                    .unwrap_or_else(|| self.scorer.score_word(word))
+            })
+            .collect();
+        self.word_scores = Some(ordered_scores);
+        self
+    }
+
+    /// Gets the score for each available guess, keyed by guess. This computes the scores if they
+    /// have not already been computed. The set of words is limited by the [`GuessFrom`] value used
+    /// in this guesser, and by the updates that have been provided so far.
+    pub fn get_or_compute_scores(&mut self) -> HashMap<Arc<str>, i64> {
+        self.compute_scores_if_unknown();
+        self.words_to_score()
+            .iter()
+            .zip(self.word_scores.as_ref().unwrap().iter())
+            .map(|(word, score)| (Arc::clone(word), *score))
+            .collect()
     }
 
     /// Returns up-to the top `n` guesses for the wordle, based on the current state.
