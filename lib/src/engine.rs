@@ -235,7 +235,7 @@ where
     /// This is handy to initialise the guesser with precomputed scores for the first guess. You
     /// can retrieve this data by calling [`Self::get_or_compute_scores()`] on a newly constructed
     /// guesser.
-    pub fn with_word_scores(mut self, scores: &HashMap<Arc<str>, i64>) -> Self {
+    pub fn with_scores(mut self, scores: &HashMap<Arc<str>, i64>) -> Self {
         let words_to_score = self.words_to_score();
         let ordered_scores: Vec<i64> = words_to_score
             .iter()
