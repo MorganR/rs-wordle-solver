@@ -8,6 +8,13 @@ See [the docs](https://docs.rs/rs-wordle-solver/).
 
 ## Releases
 
+**1.1.0**
+
+* Add `MaxScoreGuesser::get_or_compute_scores` to extract just the precomputed word scores.
+* Add `MaxScoreGuesser::with_scores` to use extracted/otherwise precomputed word scores.
+* Change `MaxScoreGuesser::with_parallelisation_limit` to a builder function that accepts and
+  returns `Self`, instead of being an alternative constructor.
+
 **1.0.0**
 
 - Move score precomputation from `MaxEliminationsScorer` and `MaxComboEliminationsScorer`

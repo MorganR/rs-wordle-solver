@@ -163,12 +163,8 @@ macro_rules! bench_max_eliminations_with_precompute_parallelisation_limit {
 
             let bank = WordBank::from_reader(all_words)?;
             let scorer = MaxEliminationsScorer::new(bank.clone());
-            let mut base_guesser = MaxScoreGuesser::with_parallelisation_limit(
-                GuessFrom::AllUnguessedWords,
-                bank,
-                scorer,
-                $limit,
-            );
+            let mut base_guesser = MaxScoreGuesser::new(GuessFrom::AllUnguessedWords, bank, scorer)
+                .with_parallelisation_limit($limit);
             base_guesser.compute_scores_if_unknown();
 
             let test_words: Vec<String> =
@@ -260,12 +256,8 @@ macro_rules! bench_select_top_n_parallelisation_limit {
 
             let bank = WordBank::from_reader(all_words)?;
             let scorer = MaxEliminationsScorer::new(bank.clone());
-            let mut base_guesser = MaxScoreGuesser::with_parallelisation_limit(
-                GuessFrom::PossibleWords,
-                bank,
-                scorer,
-                $limit,
-            );
+            let mut base_guesser = MaxScoreGuesser::new(GuessFrom::PossibleWords, bank, scorer)
+                .with_parallelisation_limit($limit);
             base_guesser.compute_scores_if_unknown();
 
             let guess = "tares";
