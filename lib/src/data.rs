@@ -516,7 +516,7 @@ impl<'w> WordTracker<'w> {
 }
 
 /// Efficiently tracks all possible words and all unguessed words as zero-cost slices within a
-/// single array of all words. This assumes that only unguessed words are possible.
+/// single array of all words.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GroupedWords {
@@ -550,7 +550,6 @@ impl GroupedWords {
         self.num_possible_words
     }
 
-    #[cfg(test)]
     pub fn num_unguessed_words(&self) -> usize {
         self.first_guessed_impossible_word - self.first_unguessed_possible_word
     }
