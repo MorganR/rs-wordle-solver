@@ -8,6 +8,16 @@ See [the docs](https://docs.rs/rs-wordle-solver/).
 
 ## Releases
 
+**1.2.0**
+
+The main goal of this release is to support changing the `GuessFrom` value mid-game without
+creating a whole new `Guesser`. The `GuessFrom` value provided in the constructor now acts as the
+default value when not explicitly specified.
+
+* Add `Guesser::select_next_guess_from` to select a guess from a specific `GuessFrom` list.
+* Add `MaxScoreGuesser::select_top_n_guesses_from` to select the top guesses from a specific list.
+* Add `MaxScoreGuesser::compute_scores_if_needed_from` for caching the scores from a specific list.
+
 **1.1.0**
 
 * Add `MaxScoreGuesser::get_or_compute_scores` to extract just the precomputed word scores.
